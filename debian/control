@@ -1,0 +1,26 @@
+Source: mafw-upnp-source
+Section: misc
+Priority: optional
+Maintainer: Mika Tapojärvi <ext-mika.tapojarvi@nokia.com>
+Build-Depends: debhelper (>= 4.0.0),
+	       libglib2.0-dev, uuid-dev,
+	       libgupnp-av-1.0-dev,
+	       libconic0-dev, libdbus-1-dev,
+	       libmafw0-dev, checkmore, dbus,
+	       libdbus-glib-1-dev
+Standards-Version: 3.7.2
+
+Package: mafw-upnp-source
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: MAFW UPnP source plugin
+ Source plugin for MAFW UPnP.
+
+Package: mafw-upnp-source-dbg
+Section: devel
+Architecture: any
+Priority: extra
+Depends: mafw-upnp-source (= ${binary:Version})
+Description: debug symbols for mafw-upnp-source
+ MAFW-UPnP-source debug symbols.
