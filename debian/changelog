@@ -1,8 +1,8 @@
-mafw-upnp-source (0.1.2009.13-6) unstable; urgency=low
+mafw-upnp-source (0.1.2009.13-7) unstable; urgency=low
 
-  * MAFW uPnP source, pre-release 0.2009.13-6
+  * Version update.
 
- -- Juha Kellokoski <veitikka6@gmail.com>  Thu, 26 Mar 2009 09:53:00 +0200
+ -- Mika Tapojärvi <ext-mika.tapojarvi@nokia.com>  Tue, 07 Apr 2009 09:19:31 +0300
 
 mafw-upnp-source (0.1.2009.13-5) unstable; urgency=low
 
