@@ -320,6 +320,60 @@ gchar* didl_get_album_art_uri(xmlNode* didl_object)
 }
 
 /**
+ * didl_get_seekability:
+ * @didl_object: An @xmlNode that contains a DIDL-Lite object
+ *
+ * Extracts the seekability associated with the given DIDL-Lite
+ * object.
+ *
+ * Returns: -1 for container objects. For item objects, the
+ * seekability is extracted and returns 1 if item is seekable, 0 if it
+ * is not and -1 in case it could not be extracted.
+ **/
+gint8 didl_get_seekability(xmlNode* didl_object)
+{
+	gint8 seekability = -1;
+
+	g_return_val_if_fail(didl_object != NULL, -1);
+
+	if (!gupnp_didl_lite_object_is_container(didl_object))
+	{
+		xmlNode* res_node;
+
+		res_node = didl_get_http_res(didl_object);
+		if (res_node != NULL) {
+			gchar *additional_info = NULL;
+
+			additional_info = didl_res_get_protocol_info(res_node,
+								     3);
+			if (additional_info != NULL &&
+			    strcmp(additional_info, "*") != 0) {
+				gchar *dlna_org_op = NULL;
+
+				dlna_org_op = strstr(additional_info,
+						     "DLNA.ORG_OP=");
+
+				/* In "DLNA.ORG_OP=ab" we need the
+				 character b. If it is 1, it is
+				 seekable, if 0, it is not */
+				if (dlna_org_op != NULL &&
+				    strlen(dlna_org_op) >= 13) {
+					if (dlna_org_op[13] == '1') {
+						seekability = 1;
+					} else if (dlna_org_op[13] == '0') {
+						seekability = 0;
+					}
+				}
+			}
+
+			g_free(additional_info);
+		}
+	}
+
+	return seekability;
+}
+
+/**
  * didl_fallback:
  * @didl_object: A DIDL-Lite object to search the key from
  * @key:         The metadata key to search for

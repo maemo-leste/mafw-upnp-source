@@ -68,6 +68,8 @@ gint didl_get_childcount(xmlNode* didl_object);
 gchar* didl_get_thumbnail_uri(xmlNode* didl_node);
 gchar* didl_get_album_art_uri(xmlNode* didl_object);
 
+gint8 didl_get_seekability(xmlNode* didl_object);
+
 gchar* didl_fallback(xmlNode* didl_object, const gchar* key, gint* type);
 
 const gchar* didl_mafwkey_to_upnp_result(const gchar* mafwkey, gint* type);
