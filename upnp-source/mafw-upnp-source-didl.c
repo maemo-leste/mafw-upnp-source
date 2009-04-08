@@ -360,8 +360,10 @@ gint8 didl_get_seekability(xmlNode* didl_object)
 				    strlen(dlna_org_op) >= 13) {
 					if (dlna_org_op[13] == '1') {
 						seekability = 1;
+						g_debug("seekability positive");
 					} else if (dlna_org_op[13] == '0') {
 						seekability = 0;
+						g_debug("seekability negative");
 					}
 				}
 			}
@@ -370,6 +372,7 @@ gint8 didl_get_seekability(xmlNode* didl_object)
 		}
 	}
 
+	g_debug("final seekability %d", seekability);
 	return seekability;
 }
 
