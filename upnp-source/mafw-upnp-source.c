@@ -703,6 +703,16 @@ static GHashTable *mafw_upnp_source_compile_metadata(gchar** keys,
 			if (didl != NULL && strlen(didl) > 0)
 				mafw_metadata_add_str(metadata, name, didl);
 		}
+		else if (strcmp(name, MAFW_METADATA_KEY_IS_SEEKABLE) == 0)
+		{
+			gint8 seekability;
+
+			seekability = didl_get_seekability(didl_node);
+			if (seekability != -1) {
+				mafw_metadata_add_boolean(metadata, name,
+							  0 ? FALSE : TRUE);
+			}
+		}
 		else
 		{
 			gint type = G_TYPE_INVALID;
