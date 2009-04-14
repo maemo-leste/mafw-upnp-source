@@ -1,8 +1,13 @@
-mafw-upnp-source (0.1.2009.13-7) unstable; urgency=low
+mafw-upnp-source (0.1.2009.16-2) unstable; urgency=low
 
-  * Version update.
+  * MAFW uPnP source, pre-release 0.2009.16-2
+  * Added debug for seekability in upnp source.
+  * Added management of MAFW_METADATA_KEY_IS_SEEKABLE in upnp source based on
+    didl_get_seekability.
+  * Added didl_get_seekability function to read seekability from dldl-lite 
+    object in upnp source.
 
- -- Mika Tapojärvi <ext-mika.tapojarvi@nokia.com>  Tue, 07 Apr 2009 09:19:31 +0300
+ -- Mika Tapojärvi <ext-mika.tapojarvi@nokia.com>  Tue, 14 Apr 2009 15:10:18 +0300
 
 mafw-upnp-source (0.1.2009.13-5) unstable; urgency=low
 
