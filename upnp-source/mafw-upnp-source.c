@@ -1274,14 +1274,15 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 		 * will try to terminate the session again. */
 		if (args->remaining_count > 0)
 		{
-			g_warning("No results. Terminating browse session.");
 			args->callback(MAFW_SOURCE(args->source),
 				       args->browse_id, 0, 0, NULL, NULL,
 				       args->user_data, error);
 			args->remaining_count = 0;
 		}
 
-		g_error_free(error);
+		if (error) {
+			g_error_free(error);
+		}
 	}
 	else
 	{
