@@ -1192,10 +1192,14 @@ static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
 
 	/* Calculate remaining count and current item's index. */
 	current = args->current++;
-	if ((args->item_count == 0) || (args->number_returned < args->item_count))
+	if (args->item_count == 0) {
+		/* All items were requested. */
+		args->remaining_count = args->total_matches - args->current;
+	} else if (args->number_returned < args->item_count) {
 		args->remaining_count = args->number_returned - args->current;
-	else
+	} else {
 		args->remaining_count =	args->item_count - args->current;
+	}
 
 	/* Emit results */
 	args->callback(MAFW_SOURCE(args->source),
