@@ -1268,13 +1268,6 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 				    "GUPnP: %s", gupnp_error->message);
 			g_error_free(gupnp_error);
 		}
-		else
-		{
-			g_set_error(&error,
-				    MAFW_SOURCE_ERROR,
-				    MAFW_SOURCE_ERROR_BROWSE_RESULT_FAILED,
-				    "Didn't receive any results");
-		}
 
 		/* Call the callback function with invalid values and an error.
 		 * Zero out remaining_count, otherwise browse_args_unref()
@@ -1337,6 +1330,16 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 		else if (args->remaining_count <= 0)
 		{
 			/* There are no more items left to browse. Stop. */
+		}
+		/* This happens when no result was obtained in the browse operation.
+		   In  this case, mafw_upnp_source_browse_result is not invoked,
+		   so the remaining_count has not been modified (should be
+		   INT_MAX) and the user callback was never invoked */
+		else if (args->number_returned == 0)
+		{
+			args->callback(MAFW_SOURCE(args->source),
+				       args->browse_id, 0, 0, NULL, NULL,
+				       args->user_data, NULL);
 		}
 #if 0
 		/* Uncommenting this makes DLNA CTT 7.3.64.10 fail, but this
