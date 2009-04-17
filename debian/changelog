@@ -1,3 +1,16 @@
+mafw-upnp-source (0.1.2009.17-2) unstable; urgency=low
+
+  * MAFW uPnP source, pre-release 0.2009.17-2
+  * Fixes: NB#110397 - Not all items under a UPnP container are shown
+  * Fixes: NB#101038 - UPnP source returns wrong remaining count if request count is not MAFW_SOURCE_BROWSE_ALL
+  * Removed useless warning message and fixed critical error message.
+  * If browse with a skip count > 0 returns
+    no results, invoke the user callback with appropriate
+    parameters. Also, when browsing an empty container, do not return 
+    an error.
+
+ -- Juha Kellokoski <veitikka6@gmail.com>  Fri, 17 Apr 2009 09:18:07 +0300
+
 mafw-upnp-source (0.1.2009.16-2) unstable; urgency=low
 
   * MAFW uPnP source, pre-release 0.2009.16-2
