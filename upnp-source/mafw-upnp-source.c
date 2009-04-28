@@ -710,7 +710,7 @@ static GHashTable *mafw_upnp_source_compile_metadata(gchar** keys,
 			seekability = didl_get_seekability(didl_node);
 			if (seekability != -1) {
 				mafw_metadata_add_boolean(metadata, name,
-							  0 ? FALSE : TRUE);
+							  seekability);
 			}
 		}
 		else
