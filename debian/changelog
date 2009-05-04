@@ -1,12 +1,13 @@
-mafw-upnp-source (0.1.2009.18-2) unstable; urgency=low
+mafw-upnp-source (0.1.2009.19-2) unstable; urgency=low
 
-  * MAFW uPnP source, pre-release 0.2009.18-2
+  * MAFW uPnP source, pre-release 0.2009.19-2
 
- -- Juha Kellokoski <veitikka6@gmail.com>  Thu, 23 Apr 2009 15:30:00 +0300
+ -- Juha Kellokoski <veitikka6@gmail.com>  Thu, 30 Apr 2009 10:00:00 +0300
 
-mafw-upnp-source (0.1.2009.18-1) unstable; urgency=low
+mafw-upnp-source (0.1.2009.19-1) unstable; urgency=low
 
-  * MAFW uPnP source, pre-release 0.2009.18-1
+  * MAFW uPnP source, pre-release 0.2009.19-1
+  * Fixes: NB#108725 - DLNA CTT tool gives a failed verdict on "MT HTTP Header: Range - use in HEAD/GET requests"
   * Fixes: NB#110397 - Not all items under a UPnP container are shown
   * Fixes: NB#101038 - UPnP source returns wrong remaining count if request count is not MAFW_SOURCE_BROWSE_ALL
   * Removed useless warning message and fixed critical error message.
@@ -14,6 +15,12 @@ mafw-upnp-source (0.1.2009.18-1) unstable; urgency=low
     no results, invoke the user callback with appropriate
     parameters. Also, when browsing an empty container, do not return 
     an error.
+
+ -- Juha Kellokoski <veitikka6@gmail.com>  Thu, 30 Apr 2009 10:00:00 +0300
+
+mafw-upnp-source (0.1.2009.18-1) unstable; urgency=low
+
+  * MAFW uPnP source, pre-release 0.2009.18-1
 
  -- Juha Kellokoski <veitikka6@gmail.com>  Thu, 23 Apr 2009 15:30:00 +0300
 
