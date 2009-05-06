@@ -366,6 +366,12 @@ gint8 didl_get_seekability(xmlNode* didl_object)
 						g_debug("seekability negative");
 					}
 				}
+				else
+				{
+					seekability = 0;
+					g_debug("seekability negative..."
+						"missing info");
+				}
 			}
 
 			g_free(additional_info);
