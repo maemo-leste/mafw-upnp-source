@@ -340,6 +340,10 @@ gint8 didl_get_seekability(xmlNode* didl_object)
 	{
 		xmlNode* res_node;
 
+		/* For non container objects, we set default
+		 * seekability to 0 */
+		seekability = 0;
+
 		res_node = didl_get_http_res(didl_object);
 		if (res_node != NULL) {
 			gchar *additional_info = NULL;
@@ -361,16 +365,7 @@ gint8 didl_get_seekability(xmlNode* didl_object)
 					if (dlna_org_op[13] == '1') {
 						seekability = 1;
 						g_debug("seekability positive");
-					} else if (dlna_org_op[13] == '0') {
-						seekability = 0;
-						g_debug("seekability negative");
 					}
-				}
-				else
-				{
-					seekability = 0;
-					g_debug("seekability negative..."
-						"missing info");
 				}
 			}
 
