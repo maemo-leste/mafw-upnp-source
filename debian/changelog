@@ -1,8 +1,11 @@
-mafw-upnp-source (0.1.2009.20-2) unstable; urgency=low
+mafw-upnp-source (0.1.2009.21-1) unstable; urgency=low
 
-  * MAFW uPnP source, pre-release 0.2009.20-2
+  * MAFW uPnP source, pre-release 0.2009.21-1
+  * Changed code to detect seekability in upnp source to make it a bit
+    better readable. For non containers, it sets default to 0 and it is only
+    set to 1 if parameter is found and it is 1.
 
- -- Juha Kellokoski <veitikka6@gmail.com>  Thu, 07 May 2009 11:00:00 +0300
+ -- Juha Kellokoski <veitikka6@gmail.com>  Thu, 14 May 2009 10:09:18 +0300
 
 mafw-upnp-source (0.1.2009.20-1) unstable; urgency=low
 
