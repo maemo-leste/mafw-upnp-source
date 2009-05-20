@@ -202,8 +202,7 @@ static void mafw_upnp_source_plugin_gupnp_up(void)
 	}
 
 	/* Create a control point object with MediaServer search target */
-	_plugin->cp = gupnp_control_point_new(
-		_plugin->context, "urn:schemas-upnp-org:device:MediaServer:1");
+	_plugin->cp = gupnp_control_point_new(_plugin->context, "ssdp:all");
 	g_assert(_plugin->cp != NULL);
 
 	/* Listen to device alive/byebye messages */
@@ -550,16 +549,31 @@ static void mafw_upnp_source_device_proxy_available(GUPnPControlPoint* cp,
 						     gpointer user_data)
 {
 	GUPnPServiceProxy* service;
+	MafwExtension* extension;
 	gchar* uuid;
 	gchar* name;
+	const char *type;
 
 	g_assert(device != NULL);
+
+	type = gupnp_device_info_get_device_type (GUPNP_DEVICE_INFO (device));
+	if (!g_pattern_match_simple (
+			"urn:schemas-upnp-org:device:MediaServer:*", type)) {
+		return;
+	}
 
 	/* Get the device UDN and strip the "uuid:" part away because it
 	   confuses DBus. */
 	uuid = util_udn_to_uuid(gupnp_device_info_get_udn(
 					GUPNP_DEVICE_INFO(device)));
 	g_assert(uuid != NULL);
+
+	extension = mafw_registry_get_extension_by_uuid(_plugin->registry,
+							uuid);
+	if (extension != NULL) {
+		/* We already have a proxy of this device, ignore */
+		return;
+	}
 
 	name = gupnp_device_info_get_friendly_name(GUPNP_DEVICE_INFO(device));
 	g_assert(name != NULL);
@@ -574,24 +588,18 @@ static void mafw_upnp_source_device_proxy_available(GUPnPControlPoint* cp,
 
 		g_assert(MAFW_IS_REGISTRY(_plugin->registry));
 
-		/* Attempt to find an existing source by the same UUID */
-		source = MAFW_SOURCE(mafw_registry_get_extension_by_uuid(
-					     _plugin->registry, uuid));
-		if (source == NULL)
-		{
-			/* New source can be created */
-			g_debug("UPnP CDS available."
+		/* New source can be created */
+		g_debug("UPnP CDS available."
 				"\n\tName:[%s]\n\tUUID:[%s]", name, uuid);
 
-			source = MAFW_SOURCE(mafw_upnp_source_new(name,
+		source = MAFW_SOURCE(mafw_upnp_source_new(name,
 								    uuid));
-			mafw_upnp_source_attach_proxy(
+		mafw_upnp_source_attach_proxy(
 				MAFW_UPNP_SOURCE(source), device, service);
 
-			mafw_registry_add_extension(_plugin->registry,
+		mafw_registry_add_extension(_plugin->registry,
 					       MAFW_EXTENSION(source));
 
-		}
 
 		g_object_unref(service);
 	}
