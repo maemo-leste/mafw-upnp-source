@@ -405,12 +405,13 @@ static void mafw_upnp_source_init(MafwUPnPSource *self)
 
 static void mafw_upnp_source_class_init(MafwUPnPSourceClass *klass)
 {
-	GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
-	MafwSourceClass *source_class = MAFW_SOURCE_CLASS(klass);
+	GObjectClass *gobject_class;
+	MafwSourceClass *source_class;
 
 	g_return_if_fail(klass != NULL);
 
 	gobject_class = G_OBJECT_CLASS(klass);
+	source_class = MAFW_SOURCE_CLASS(klass);
 
 	gobject_class->dispose = mafw_upnp_source_dispose;
 
@@ -599,7 +600,6 @@ static void mafw_upnp_source_device_proxy_available(GUPnPControlPoint* cp,
 
 		mafw_registry_add_extension(_plugin->registry,
 					       MAFW_EXTENSION(source));
-
 
 		g_object_unref(service);
 	}
