@@ -1,7 +1,15 @@
+mafw-upnp-source (0.1.2009.22-2) unstable; urgency=low
+
+  * MAFW uPnP source, pre-release 0.2009.22-2
+  * Fixes: NB#98869 - Terminated N95 Server is still showing in Main view 
+  * CID 8992
+  * upnp fine-tuning
+
+ -- Juha Kellokoski <veitikka6@gmail.com>  Mon, 25 May 2009 12:21:24 +0300
+
 mafw-upnp-source (0.1.2009.22-1) unstable; urgency=low
 
   * MAFW uPnP source, pre-release 0.2009.22-1
-  * Fixes: NB#98869 - Terminated N95 Server is still showing in Main view 
 
  -- Juha Kellokoski <veitikka6@gmail.com>  Fri, 22 May 2009 12:00:00 +0300
 
