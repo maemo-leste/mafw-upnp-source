@@ -56,6 +56,8 @@
 #define SYSTEM_UPDATE_ID     "SystemUpdateID"
 #define CONTAINER_UPDATE_IDS "ContainerUpdateIDs"
 
+#define UPNP_KEY_CHILDCOUNT  "childcount(1)"
+
 #define KNOWN_METADATA_KEYS "uri", "mime-type", "title", "duration", \
 	"artist", "album", "genre", "track", "year", "bitrate", "count", \
 	"play-count", "description", "encoding", "added", "thumbnail-uri", \
@@ -64,7 +66,8 @@
 	"lyrics-uri", "lyrics", "rating", "composer", "filename", "filesize", \
 	"copyright", "protocol-info", "audio-bitrate", "audio-codec", \
 	"album-art-uri", "album-art", "video-bitrate", "video-codec", \
-	"video-framerate", "bpp", "exif-xml", "childcount", "icon-uri", "icon"
+        "video-framerate", "bpp", "exif-xml", "icon-uri", "icon", \
+        UPNP_KEY_CHILDCOUNT
 
 typedef struct _BrowseArgs BrowseArgs;
 
@@ -680,7 +683,7 @@ static GHashTable *mafw_upnp_source_compile_metadata(gchar** keys,
 				mafw_metadata_add_str(metadata, name, value);
 			g_free(value);
 		}
-		else if (strcmp(name, MAFW_METADATA_KEY_CHILDCOUNT) == 0)
+		else if (strcmp(name, UPNP_KEY_CHILDCOUNT) == 0)
 		{
 			number = didl_get_childcount(didl_node);
 			if (number >= 0)

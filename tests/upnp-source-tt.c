@@ -189,14 +189,16 @@ static gboolean browse_cb(gpointer data)
 	MafwRegistry* registry = NULL;
 	MafwSource* source = NULL;
 	guint browseid;
+        gchar *childcount;
 
 	registry = MAFW_REGISTRY(mafw_registry_get_instance());
 	g_assert(registry != NULL);
 
 	/* Make a list of interesting metadata keys */
+        childcount = MAFW_METADATA_KEY_CHILDCOUNT(1);
 	meta_keys = MAFW_SOURCE_LIST(MAFW_METADATA_KEY_TITLE,
 				     MAFW_METADATA_KEY_URI,
-				     MAFW_METADATA_KEY_CHILDCOUNT,
+				     childcount,
 				     MAFW_METADATA_KEY_MIME,
 				     MAFW_METADATA_KEY_DURATION,
 				     MAFW_METADATA_KEY_ALBUM_ART_SMALL_URI,
@@ -306,6 +308,8 @@ static gboolean browse_cb(gpointer data)
 		g_free(uuid);
 		g_free(itemid);
 	}
+
+        g_free(childcount);
 
 	return FALSE;
 }
