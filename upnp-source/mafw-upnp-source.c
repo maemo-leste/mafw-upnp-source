@@ -29,11 +29,11 @@
 #include <string.h>
 #include <gmodule.h>
 
-#ifdef __ARMEL__ /* MAEMO */
+#ifdef HAVE_CONIC_ /* MAEMO */
 #include <conic.h>
 #include <dbus/dbus.h>
 #include <dbus/dbus-glib-lowlevel.h>
-#endif /* __ARMEL__ */
+#endif /* MAEMO */
 
 #include <libmafw/mafw.h>
 #include <libgupnp/gupnp.h>
@@ -165,11 +165,11 @@ static void mafw_upnp_source_deinitialize(GError **error)
 
 typedef struct _MafwUPnPSourcePlugin {
 
-#ifdef __ARMEL__ /* MAEMO */
+#ifdef HAVE_CONIC /* MAEMO */
 
 	ConIcConnection* conic;
 	DBusConnection* dbus_system;
-#endif /* __ARMEL__ */
+#endif /* MAEMO */
 
 	MafwRegistry* registry;
 	GUPnPContext* context;
@@ -249,7 +249,7 @@ static void mafw_upnp_source_plugin_gupnp_down(void)
 	_plugin->context = NULL;
 }
 
-#ifdef __ARMEL__ /* MAEMO */
+#ifdef HAVE_CONIC /* MAEMO */
 
 static void mafw_upnp_source_plugin_conic_event(ConIcConnection* connection,
 						 ConIcConnectionEvent* event,
@@ -300,7 +300,7 @@ static void mafw_upnp_source_plugin_conic_event(ConIcConnection* connection,
 	}
 }
 
-#endif /* __ARMEL__ */
+#endif /* MAEMO */
 
 void mafw_upnp_source_plugin_initialize(MafwRegistry* registry)
 {
@@ -321,7 +321,7 @@ void mafw_upnp_source_plugin_initialize(MafwRegistry* registry)
 	/* Reset next browse id */
 	_plugin->next_browse_id = 0;
 
-#ifdef __ARMEL__ /* MAEMO */
+#ifdef HAVE_CONIC /* MAEMO */
 
 	/* Initialize the system bus so libconic can receive ICD messages. */
 	_plugin->dbus_system = dbus_bus_get(DBUS_BUS_SYSTEM, NULL);
@@ -346,7 +346,7 @@ void mafw_upnp_source_plugin_initialize(MafwRegistry* registry)
 	   network is up and running. */
 	mafw_upnp_source_plugin_gupnp_up();
 
-#endif /* __ARMEL__ */
+#endif /* MAEMO */
 }
 
 void mafw_upnp_source_plugin_deinitialize(void)
@@ -355,13 +355,13 @@ void mafw_upnp_source_plugin_deinitialize(void)
 
 	mafw_upnp_source_plugin_gupnp_down();
 
-#ifdef __ARMEL__ /* MAEMO */
+#ifdef HAVE_CONIC /* MAEMO */
 	if (_plugin->conic != NULL)
 		g_object_unref(_plugin->conic);
 	_plugin->conic = NULL;
 
 	dbus_connection_unref(_plugin->dbus_system);
-#endif /* __ARMEL__ */
+#endif /* MAEMO */
 
 	g_object_unref(_plugin->registry);
 	_plugin->registry = NULL;
