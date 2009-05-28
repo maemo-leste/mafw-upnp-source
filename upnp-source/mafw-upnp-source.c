@@ -29,7 +29,7 @@
 #include <string.h>
 #include <gmodule.h>
 
-#ifdef HAVE_CONIC_ /* MAEMO */
+#ifdef HAVE_CONIC /* MAEMO */
 #include <conic.h>
 #include <dbus/dbus.h>
 #include <dbus/dbus-glib-lowlevel.h>
@@ -166,7 +166,6 @@ static void mafw_upnp_source_deinitialize(GError **error)
 typedef struct _MafwUPnPSourcePlugin {
 
 #ifdef HAVE_CONIC /* MAEMO */
-
 	ConIcConnection* conic;
 	DBusConnection* dbus_system;
 #endif /* MAEMO */
