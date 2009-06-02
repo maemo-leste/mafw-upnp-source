@@ -676,8 +676,10 @@ static GHashTable *mafw_upnp_source_compile_metadata(gchar** keys,
 		if (strcmp(name, MAFW_METADATA_KEY_URI) == 0)
 		{
 			value = didl_get_http_res_uri(didl_node);
-			if (value != NULL && strlen(value) > 0)
+			if (value != NULL && strlen(value) > 0) {
 				mafw_metadata_add_str(metadata, name, value);
+				g_debug("requested uri metadata: %s", value);
+			}
 			g_free(value);
 		}
 		else if (strcmp(name, MAFW_METADATA_KEY_CHILDCOUNT_1) == 0)
