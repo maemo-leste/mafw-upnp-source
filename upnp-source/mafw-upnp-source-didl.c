@@ -369,6 +369,9 @@ gint8 didl_get_seekability(xmlNode* didl_object)
 					be considered as
 					non-seekable */
 					seekability = 0;
+					g_debug("seekability negative, because "
+						"DLNA info present, but "
+						"nothing about seekability");
 				}
 			}
 
