@@ -362,10 +362,12 @@ gint8 didl_get_seekability(xmlNode* didl_object)
 						seekability = 1;
 						g_debug("seekability positive");
 					}
-				} else if (strstr(additional_info, "DLNA."))
-				{ /* If server does not provide the seekability
-					info, but it is a DLNA content, this 
-					should be considered as non-seekable */
+				} else if (strstr(additional_info, "DLNA.")) {
+					/* If server does not provide
+					the seekability info, but it
+					is a DLNA content, this should
+					be considered as
+					non-seekable */
 					seekability = 0;
 				}
 			}
