@@ -69,6 +69,7 @@
 
 typedef struct _BrowseArgs BrowseArgs;
 
+static GUPnPDIDLLiteParser* parser;
 /*----------------------------------------------------------------------------
   Static prototypes
   ----------------------------------------------------------------------------*/
@@ -175,7 +176,6 @@ typedef struct _MafwUPnPSourcePlugin {
 	MafwRegistry* registry;
 	GUPnPContext* context;
 	GUPnPControlPoint* cp;
-	GUPnPDIDLLiteParser* parser;
 	guint next_browse_id;
 } MafwUPnPSourcePlugin;
 
@@ -215,10 +215,6 @@ static void mafw_upnp_source_plugin_gupnp_up(void)
 			 G_CALLBACK(mafw_upnp_source_device_proxy_unavailable),
 			 _plugin);
 
-	/* Create a DIDL-Lite parser object */
-	_plugin->parser = gupnp_didl_lite_parser_new();
-        g_assert(_plugin->parser != NULL);
-
 	/* Switch the control point on */
         gssdp_resource_browser_set_active(
 				GSSDP_RESOURCE_BROWSER(_plugin->cp), TRUE);
@@ -227,7 +223,7 @@ static void mafw_upnp_source_plugin_gupnp_up(void)
 /**
  * mafw_upnp_source_plugin_gupnp_down:
  *
- * Destroys the gupnp framework.
+ * Deactivates gupnp.
  */
 static void mafw_upnp_source_plugin_gupnp_down(void)
 {
@@ -238,10 +234,6 @@ static void mafw_upnp_source_plugin_gupnp_down(void)
 		g_object_unref(_plugin->cp);
 		_plugin->cp = NULL;
 	}
-
-	if (_plugin->parser != NULL)
-		g_object_unref(_plugin->parser);
-	_plugin->parser = NULL;
 
 	/* Destroy context, because it is bound to a nonexisting network
 	   interface if we came here from conic message handler. */
@@ -422,6 +414,10 @@ static void mafw_upnp_source_class_init(MafwUPnPSourceClass *klass)
 	source_class->browse = mafw_upnp_source_browse;
 	source_class->cancel_browse = mafw_upnp_source_cancel_browse;
 	source_class->get_metadata = mafw_upnp_source_get_metadata;
+	
+	/* Create a DIDL-Lite parser object */
+	parser = gupnp_didl_lite_parser_new();
+        g_assert(parser != NULL);
 }
 
 static void mafw_upnp_source_dispose(GObject *object)
@@ -1314,7 +1310,7 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 		/* Parse the DIDL-Lite into an xmlNode tree and parse them
 		   one by one, using mafw_upnp_source_browse_result() */
 		gupnp_didl_lite_parser_parse_didl(
-			_plugin->parser,
+			parser,
 			didl,
 			mafw_upnp_source_browse_result,
 			args,
@@ -1834,7 +1830,7 @@ static void mafw_upnp_source_metadata_cb(GUPnPServiceProxy* service,
 	else
 	{
 		gupnp_didl_lite_parser_parse_didl(
-			_plugin->parser,
+			parser,
 			args->didl,
 			mafw_upnp_source_metadata_result,
 			args,
