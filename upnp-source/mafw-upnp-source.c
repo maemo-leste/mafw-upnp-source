@@ -136,6 +136,8 @@ static gboolean internal_filter_to_search_criteria_complex(
 static gboolean internal_filter_to_search_criteria_simple(
 	GString *upsc, MafwFilter *maffin, gboolean negate,
 	GError **error);
+static gboolean _cancel_all_browse(gpointer key, BrowseArgs *args,
+					GError *cancel_err);
 
 /*----------------------------------------------------------------------------
   MAFW Plugin construction
@@ -572,10 +574,10 @@ static void mafw_upnp_source_device_proxy_available(GUPnPControlPoint* cp,
 	extension = mafw_registry_get_extension_by_uuid(_plugin->registry,
 							uuid);
 	if (extension != NULL) {
+		g_free(uuid);
 		/* We already have a proxy of this device, ignore */
 		return;
 	}
-
 	name = gupnp_device_info_get_friendly_name(GUPNP_DEVICE_INFO(device));
 	g_assert(name != NULL);
 
@@ -603,7 +605,6 @@ static void mafw_upnp_source_device_proxy_available(GUPnPControlPoint* cp,
 
 		g_object_unref(service);
 	}
-
 	g_free(name);
 	g_free(uuid);
 }
@@ -626,12 +627,22 @@ static void mafw_upnp_source_device_proxy_unavailable(
 						_plugin->registry, uuid));
 	if (source != NULL)
 	{
+		MafwUPnPSourcePrivate* priv;
+		GError *cancel_err = NULL;
+		
+		g_set_error(&cancel_err, MAFW_SOURCE_ERROR,
+				MAFW_SOURCE_ERROR_PEER,
+				"Server disconnected");
+
+		priv = MAFW_UPNP_SOURCE_GET_PRIVATE(source);
 		/* Source found. Remove it. */
 		g_debug("UPnP CDS service no longer available."
 			"\n\tName:[%s]\n\tUUID:[%s]",
 			 mafw_extension_get_name(MAFW_EXTENSION(source)),
 			 mafw_extension_get_uuid(MAFW_EXTENSION(source)));
-
+		g_tree_foreach(priv->browses, 
+				(GTraverseFunc)_cancel_all_browse, cancel_err);
+		g_error_free(cancel_err);
 		mafw_registry_remove_extension(_plugin->registry,
 					   MAFW_EXTENSION(source));
 	}
@@ -1124,7 +1135,7 @@ static BrowseArgs* browse_args_ref(BrowseArgs* args)
 /**
  * Decrease BrowseArgs* reference count. See browse_args_ref() for reasons.
  */
-static void browse_args_unref(BrowseArgs* args)
+static void browse_args_unref(BrowseArgs* args, GError *err)
 {
 	g_assert(args != NULL && args->refcount > 0);
 
@@ -1145,7 +1156,7 @@ static void browse_args_unref(BrowseArgs* args)
 		{
 			args->callback(MAFW_SOURCE(args->source),
 				       args->browse_id, 0, 0, NULL, NULL,
-				       args->user_data, NULL);
+				       args->user_data, err);
 		}
 
 		g_object_unref(args->source);
@@ -1380,7 +1391,7 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 	}
 
 	g_free(didl);
-	browse_args_unref(args);
+	browse_args_unref(args, NULL);
 }
 
 static GUPnPServiceProxyAction* mafw_upnp_source_browse_internal(
@@ -1626,7 +1637,7 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 		}
 
 		/* Action invocation failed before it even begun */
-		browse_args_unref(args);
+		browse_args_unref(args, NULL);
 		return MAFW_SOURCE_INVALID_BROWSE_ID;
 	}
 	else
@@ -1641,6 +1652,40 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 
 		return _plugin->next_browse_id++;
 	}
+}
+
+static void _cancel_request(MafwUPnPSourcePrivate *priv, BrowseArgs *args, GError *err)
+{
+	g_assert(args != NULL);
+
+	if (args->action != NULL)
+	{
+		/* Cancel the action related to the given browse ID */
+		gupnp_service_proxy_cancel_action(priv->service,
+						  args->action);
+
+		/* Unref args, since the UPnP action handler callback
+		   won't be called anymore. This will also take care of
+		   removing the browse id from the hash table, as well
+		   as sending the last EOF msg to the user callback. */
+		browse_args_unref(args, err);
+	}
+	else
+	{
+		/* The UPnP action was completed and it cannot be
+		   cancelled anymore. */
+	}
+}
+
+static gboolean _cancel_all_browse(gpointer key, BrowseArgs *args,
+					GError *cancel_err)
+{
+	g_assert(args);
+	g_assert(MAFW_IS_UPNP_SOURCE(args->source));
+
+	_cancel_request(args->source->priv, args, cancel_err);
+	
+	return FALSE;
 }
 
 /**
@@ -1670,25 +1715,7 @@ static gboolean mafw_upnp_source_cancel_browse(MafwSource *source,
 	{
 		/* Since g_tree_lookup_extended() returned TRUE, the args
 		   struct should not be NULL. */
-		g_assert(args != NULL);
-
-		if (args->action != NULL)
-		{
-			/* Cancel the action related to the given browse ID */
-			gupnp_service_proxy_cancel_action(priv->service,
-							  args->action);
-
-			/* Unref args, since the UPnP action handler callback
-			   won't be called anymore. This will also take care of
-			   removing the browse id from the hash table, as well
-			   as sending the last EOF msg to the user callback. */
-			browse_args_unref(args);
-		}
-		else
-		{
-			/* The UPnP action was completed and it cannot be
-			   cancelled anymore. */
-		}
+		_cancel_request(priv, args, NULL);
 
 		return TRUE;
 	}
