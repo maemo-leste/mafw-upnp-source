@@ -1,8 +1,19 @@
-mafw-upnp-source (0.1.2009.23-3) unstable; urgency=low
+mafw-upnp-source (0.1.2009.24-1) unstable; urgency=low
 
-  * MAFW uPnP source, pre-release 0.2009.23-3
+  * MAFW uPnP source, pre-release 0.2009.24-1
+  * Fixes: NB#118639 - Media player crash after selecting a song to play and changing WLAN IAP
+  * Fixes: NB#106278 - UPNP:Playback error displayed and seekbar is moved to 00.00 when trying to seek wma clip
+  * Using only one GUPnPDIDLLiteParser object for all the upnp-sources, and 
+    finetuning mafw_upnp_source_plugin_gupnp_down documentation, thanks to Zeeshan 
+    Ali
+  * Added debug to print uri when that metadata field is requested
+  * Fixed problem with no reporting FALSE seekability when it is explicitely
+    set in server information
+  * Added debug to report that we are setting seekability as FALSE when DLNA
+    info is present but there is no seekability info.
+  * Fixed code style to make it according our coding rules
 
- -- Juha Kellokoski <veitikka6@gmail.com>  Tue, 02 Jun 2009 12:00:00 +0300
+ -- Juha Kellokoski <veitikka6@gmail.com>  Thu, 04 Jun 2009 10:00:00 +0300
 
 mafw-upnp-source (0.1.2009.23-2) unstable; urgency=low
 
