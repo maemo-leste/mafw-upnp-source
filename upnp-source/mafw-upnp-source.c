@@ -249,48 +249,47 @@ static void mafw_upnp_source_plugin_conic_event(ConIcConnection* connection,
 						 gpointer user_data)
 {
 	ConIcConnectionStatus status;
-	ConIcConnectionError error;
 	const gchar* bearer;
 
 	status = con_ic_connection_event_get_status(event);
-	error = con_ic_connection_event_get_error(event);
 
-	switch (status)
-	{
-	case CON_IC_STATUS_CONNECTED:
-		/* Create GUPnP stuff only for WLAN connections. This prevents
-		   UPnP traffic in a GSM network. */
-		bearer = con_ic_event_get_bearer_type(CON_IC_EVENT(event));
-		if (bearer != NULL &&
+	bearer = con_ic_event_get_bearer_type(CON_IC_EVENT(event));
+	if (bearer != NULL &&
 		    (strcmp(bearer, CON_IC_BEARER_WLAN_INFRA) == 0 ||
 		     strcmp(bearer, CON_IC_BEARER_WLAN_ADHOC) == 0))
+	{
+		switch (status)
 		{
-			g_debug("WLAN connection is up.");
-			mafw_upnp_source_plugin_gupnp_up();
+			case CON_IC_STATUS_CONNECTED:
+				/* Create GUPnP stuff only for WLAN connections. This prevents
+		   		UPnP traffic in a GSM network. */
+				
+				g_debug("WLAN connection is up.");
+				mafw_upnp_source_plugin_gupnp_up();
+				break;
+
+			case CON_IC_STATUS_DISCONNECTED:
+				/* Since only one connection can be up at a time (thru conic)
+				   it shouldn't be necessary to check the bearer type here.
+				   If a GSM network was up, this does nothing. Otherwise all
+				   GUPnP stuff is destroyed as it should be. */
+				mafw_upnp_source_plugin_gupnp_down();
+				break;
+	
+			case CON_IC_STATUS_DISCONNECTING:
+				/* NOP */
+				break;
+		
+			default:
+				g_warning("Unknown network status: %d", status);
+				break;
 		}
-		else
-		{
-			g_debug("Non-WLAN connection is up. Ignoring event.");
-		}
-		break;
-
-	case CON_IC_STATUS_DISCONNECTED:
-		/* Since only one connection can be up at a time (thru conic)
-		   it shouldn't be necessary to check the bearer type here.
-		   If a GSM network was up, this does nothing. Otherwise all
-		   GUPnP stuff is destroyed as it should be. */
-		g_debug("Network connection is down.");
-		mafw_upnp_source_plugin_gupnp_down();
-		break;
-
-	case CON_IC_STATUS_DISCONNECTING:
-		/* NOP */
-		break;
-
-	default:
-		g_warning("Unknown network status: %d", status);
-		break;
 	}
+	else
+	{
+		g_debug("Non-WLAN connection has changed. Ignoring event.");
+	}
+
 }
 
 #endif /* MAEMO */
