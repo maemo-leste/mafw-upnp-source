@@ -47,7 +47,7 @@
 #define MAFW_UPNP_SOURCE_PLUGIN_NAME "MAFW-UPnP-Source"
 
 /** Maximum number of items requested at a time */
-#define DEFAULT_REQUESTED_COUNT 50
+#define DEFAULT_REQUESTED_COUNT 500
 
 #ifndef CONTENT_DIR_NO_VERSION
 #define CONTENT_DIR_NO_VERSION "urn:schemas-upnp-org:service:ContentDirectory"
