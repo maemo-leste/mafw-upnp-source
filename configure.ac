@@ -6,7 +6,7 @@
 # Copyright (C) 2008, 2009 Nokia. All rights reserved.
 
 AC_PREREQ([2.53])
-AC_INIT([mafw-upnp-source], [0.1.2009.25-1])
+AC_INIT([mafw-upnp-source], [0.1.2009.25-3])
 
 AC_CONFIG_SRCDIR([upnp-source/mafw-upnp-source.h])
 AC_CONFIG_HEADERS([config.h])

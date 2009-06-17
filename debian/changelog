@@ -1,7 +1,21 @@
+mafw-upnp-source (0.1.2009.25-3) unstable; urgency=low
+
+  * MAFW uPnP source, pre-release 0.2009.25-3
+
+ -- Juha Kellokoski <veitikka6@gmail.com>  Mon, 15 Jun 2009 14:00:00 +0300
+
+mafw-upnp-source (0.1.2009.25-2) unstable; urgency=low
+
+  * MAFW uPnP source, pre-release 0.2009.25-2
+  * Fixes: NB#120871 - UPnP source doesnt appear in source's list when wlan connectivity is lost & regained
+  * Fixes: NB#122231 - Slow access to network media servers
+  * Fixes: NB#120779 - UPNP server is not displayed in Media player when media player is open and changes connection from 3G to WLAN
+
+ -- Juha Kellokoski <veitikka6@gmail.com>  Mon, 15 Jun 2009 14:00:00 +0300
+
 mafw-upnp-source (0.1.2009.25-1) unstable; urgency=low
 
   * MAFW uPnP source, pre-release 0.2009.25-1
-  * Fixes: NB#120779 - UPNP server is not displayed in Media player when media player is open and changes connection from 3G to WLAN
 
  -- Juha Kellokoski <veitikka6@gmail.com>  Fri, 12 Jun 2009 11:00:00 +0300
 
