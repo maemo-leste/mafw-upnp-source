@@ -59,7 +59,7 @@
 #define KNOWN_METADATA_KEYS "uri", "mime-type", "title", "duration", \
 	"artist", "album", "genre", "track", "year", "bitrate", "count", \
 	"play-count", "description", "encoding", "added", "thumbnail-uri", \
-	"thumbnail", "is-seekable", "resolution", "res-x", "res-y", \
+	"thumbnail", "is-seekable", "res-x", "res-y", \
 	"comment", "tags", "didl", "artist-info-uri", "album-info-uri", \
 	"lyrics-uri", "lyrics", "rating", "composer", "filename", "filesize", \
 	"copyright", "protocol-info", "audio-bitrate", "audio-codec", \
@@ -122,7 +122,7 @@ static void mafw_upnp_source_get_metadata(MafwSource *source,
 					      gpointer user_data);
 
 /* Common utilities */
-static GHashTable *mafw_upnp_source_compile_metadata(gchar** keys,
+static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 						     xmlNode* didl_node,
 						     const gchar* didl);
 
@@ -417,6 +417,8 @@ static void mafw_upnp_source_class_init(MafwUPnPSourceClass *klass)
 	/* Create a DIDL-Lite parser object */
 	parser = gupnp_didl_lite_parser_new();
         g_assert(parser != NULL);
+
+	util_init();
 }
 
 static void mafw_upnp_source_dispose(GObject *object)
@@ -661,90 +663,139 @@ static void mafw_upnp_source_device_proxy_unavailable(
  *
  * Returns: A #GHashTable containing key-value pairs. Must be freed after use.
  */
-static GHashTable *mafw_upnp_source_compile_metadata(gchar** keys,
+static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 						     xmlNode *didl_node,
 						     const gchar* didl)
 {
 	GHashTable* metadata;
-	int i;
+	const gchar* name;
+	gchar* value;
+	gint number;
+	GList *properties;
+	gboolean is_audio = FALSE, is_container = FALSE, is_supported = TRUE;
+	gint type = G_TYPE_INVALID;
+	gint id = 0;
+	xmlNode *first_xmlnode = NULL;
 
 	/* Requested metadata keys */
 	metadata = mafw_metadata_new();
 
-	for (i = 0; keys != NULL && keys[i] != NULL; i++)
+	is_container = gupnp_didl_lite_object_is_container(didl_node);
+
+	if (is_container && (keys & MUPnPSrc_MKey_Childcount) == MUPnPSrc_MKey_Childcount)
 	{
-		gchar* name;
-		gchar* value;
-		gint number;
+		number = didl_get_childcount(didl_node);
+		if (number >= 0)
+			mafw_metadata_add_int(metadata,
+				MAFW_METADATA_KEY_CHILDCOUNT_1, number);
+	}
+	keys &= ~MUPnPSrc_MKey_Childcount;
 
-		name = keys[i];
+	
+	if (is_audio && (keys & MUPnPSrc_MKey_Thumbnail_URI) == MUPnPSrc_MKey_Thumbnail_URI)
+	{
+		value = didl_get_album_art_uri(didl_node);
+		if (value != NULL && strlen(value) > 0)
+			mafw_metadata_add_str(metadata,
+					MAFW_METADATA_KEY_THUMBNAIL_URI, value);
+		g_free(value);
+	}
+	keys &= ~MUPnPSrc_MKey_Thumbnail_URI;
 
-		if (strcmp(name, MAFW_METADATA_KEY_URI) == 0)
-		{
-			value = didl_get_http_res_uri(didl_node);
-			if (value != NULL && strlen(value) > 0) {
-				mafw_metadata_add_str(metadata, name, value);
-				g_debug("requested uri metadata: %s", value);
-			}
-			g_free(value);
-		}
-		else if (strcmp(name, MAFW_METADATA_KEY_CHILDCOUNT_1) == 0)
-		{
-			number = didl_get_childcount(didl_node);
-			if (number >= 0)
-				mafw_metadata_add_int(metadata, name, number);
-		}
-		else if (strcmp(name, MAFW_METADATA_KEY_MIME) == 0)
-		{
-			value = didl_get_mimetype(didl_node);
-			if (value != NULL && strlen(value) > 0)
-				mafw_metadata_add_str(metadata, name, value);
-			g_free(value);
-		}
-		else if (strcmp(name, MAFW_METADATA_KEY_DURATION) == 0)
-		{
-			number = didl_get_duration(didl_node);
-			if (number >= 0)
-				mafw_metadata_add_int(metadata, name, number);
-		}
-		else if (strcmp(name, MAFW_METADATA_KEY_THUMBNAIL_URI) == 0)
-		{
-			value = didl_get_thumbnail_uri(didl_node);
-			if (value != NULL && strlen(value) > 0)
-				mafw_metadata_add_str(metadata, name, value);
-			g_free(value);
-		}
-		else if (strcmp(name, MAFW_METADATA_KEY_DIDL) == 0)
-		{
-			if (didl != NULL && strlen(didl) > 0)
-				mafw_metadata_add_str(metadata, name, didl);
-		}
-		else if (strcmp(name, MAFW_METADATA_KEY_IS_SEEKABLE) == 0)
-		{
-			gint8 seekability;
+	/* Do we need the class?? */
+	if (!is_container && ((keys & MUPnPSrc_MKey_URI) ==  MUPnPSrc_MKey_URI ||
+				(keys & MUPnPSrc_MKey_Thumbnail_URI) ==
+					MUPnPSrc_MKey_Thumbnail_URI))
+	{
+		is_audio = didl_check_filetype(didl_node, &is_supported);
+		
+	}
 
-			seekability = didl_get_seekability(didl_node);
-			if (seekability != -1) {
-				mafw_metadata_add_boolean(metadata, name,
-							  seekability);
-			}
+	if ((keys & MUPnPSrc_MKey_DIDL) == MUPnPSrc_MKey_DIDL)
+	{
+		if (didl != NULL && didl[0] != '\0')
+			mafw_metadata_add_str(metadata, MAFW_METADATA_KEY_DIDL,
+							didl);
+	}
+	keys &= ~MUPnPSrc_MKey_DIDL;
+
+	properties = didl_get_supported_resources(didl_node);
+	
+
+	if (properties)
+		first_xmlnode = properties->data;
+	
+	if ((is_container || (!is_container && is_supported)) &&
+			((keys & MUPnPSrc_MKey_MimeType)
+				== MUPnPSrc_MKey_MimeType))
+	{
+		didl_get_mimetype(metadata, is_container, is_audio, properties);
+	}
+	keys &= ~MUPnPSrc_MKey_MimeType;
+	
+	if ((keys & MUPnPSrc_MKey_Duration) == MUPnPSrc_MKey_Duration)
+	{
+		number = didl_get_duration(first_xmlnode);
+		if (number >= 0)
+			mafw_metadata_add_int(metadata,
+						MAFW_METADATA_KEY_DURATION,
+						number);
+	}
+	keys &= ~MUPnPSrc_MKey_Duration;
+	
+	if ((keys & MUPnPSrc_MKey_URI) == MUPnPSrc_MKey_URI)
+	{
+		didl_get_http_res_uri(metadata, properties, is_audio);
+	}
+	keys &= ~MUPnPSrc_MKey_URI;
+	
+	if (!is_container &&
+		((keys & MUPnPSrc_MKey_Is_Seekable) ==
+			MUPnPSrc_MKey_Is_Seekable) && first_xmlnode)
+	{
+		gint8 seekability;
+
+		seekability = didl_get_seekability((xmlNode*)first_xmlnode);
+		if (seekability != -1) {
+			mafw_metadata_add_boolean(metadata, MAFW_METADATA_KEY_IS_SEEKABLE,
+						  seekability);
 		}
-		else
+	}
+	keys &= ~MUPnPSrc_MKey_Is_Seekable;
+
+	/* the rest */
+	while (keys)
+	{
+		if ((keys & 1) == 1)
 		{
-			gint type = G_TYPE_INVALID;
-			value = didl_fallback(didl_node, name, &type);
-			if (value != NULL && strlen(value) > 0)
+			value = didl_fallback(didl_node,
+					first_xmlnode, id, &type);
+			if (value != NULL && value[0] != '\0')
 			{
+				name = util_get_metadatakey_from_id(id);
+				if (!name)
+				{
+					g_free(value);
+					continue;
+				}
 				if (type == G_TYPE_INT)
+				{
 					mafw_metadata_add_int(metadata, name,
 							      atoi(value));
+				}
 				else if (type == G_TYPE_STRING)
+				{
 					mafw_metadata_add_str(metadata, name,
 							      value);
+				}
 				g_free(value);
 			}
 		}
+		keys >>= 1;
+		id++;
 	}
+
+	g_list_free(properties);
 
 	return metadata;
 }
@@ -1066,7 +1117,7 @@ struct _BrowseArgs
 	gchar* sort_criteria;
 
 	/** Requested metadata keys (copied) */
-	gchar** meta_keys;
+	guint64 mdata_keys;
 
 	/** Requested metadata keys in a comma-separated string */
 	gchar* meta_keys_csv;
@@ -1158,7 +1209,6 @@ static void browse_args_unref(BrowseArgs* args, GError *err)
 		g_free(args->itemid);
 		g_free(args->search_criteria);
 		g_free(args->sort_criteria);
-		g_strfreev(args->meta_keys);
 		g_free(args->meta_keys_csv);
 		g_free(args);
 	}
@@ -1203,7 +1253,7 @@ static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
 		return;
 
 	/* Gather requested metadata information from DIDL-Lite */
-	metadata = mafw_upnp_source_compile_metadata(args->meta_keys,
+	metadata = mafw_upnp_source_compile_metadata(args->mdata_keys,
 						      didl_node, NULL);
 
 	/* Calculate remaining count and current item's index. */
@@ -1529,17 +1579,6 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 	g_assert(self != NULL);
 	g_assert(browse_cb != NULL);
 
-	/* If metadata_keys is empty (but not NULL), or it contains an asterisk,
-	   it means that ALL metadata keys are being requested */
-	if (metadata_keys != NULL && metadata_keys[0] != NULL &&
-	    strcmp(MAFW_SOURCE_ALL_KEYS[0], metadata_keys[0]) == 0)
-	{
-		meta_keys = MAFW_SOURCE_LIST(KNOWN_METADATA_KEYS);
-	}
-	else
-	{
-		meta_keys = metadata_keys;
-	}
 
 	/* Split the object ID to get the item part, after "::" */
 	itemid = NULL;
@@ -1597,9 +1636,22 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 	args->itemid = itemid; /* Already strdupped */
 	args->search_criteria = upsc;
 	args->sort_criteria = upnp_sort_criteria;
-	args->meta_keys = util_strvdup(meta_keys);
+	/* If metadata_keys is empty (but not NULL), or it contains an asterisk,
+	   it means that ALL metadata keys are being requested */
+	if (metadata_keys != NULL && metadata_keys[0] != NULL &&
+	    strcmp(MAFW_SOURCE_ALL_KEYS[0], metadata_keys[0]) == 0)
+	{
+		args->mdata_keys = G_MAXUINT64;
+		meta_keys = MAFW_SOURCE_LIST(KNOWN_METADATA_KEYS);
+	}
+	else
+	{
+		args->mdata_keys = util_compile_mdata_keys(metadata_keys);
+		meta_keys = metadata_keys;
+	}
+	
 	args->meta_keys_csv = didl_mafwkey_array_to_upnp_filter(
-				    (const gchar *const *)args->meta_keys);
+				    (const gchar *const *)meta_keys);
 	args->skip_count = skip_count;
 	args->item_count = item_count;
 	args->callback = browse_cb;
@@ -1726,7 +1778,7 @@ typedef struct _MetadataArgs
 	MafwUPnPSource* source;
 
 	/** Requested metadata keys */
-	gchar** meta_keys;
+	guint64 mdata_keys;
 
 	/** Metadata browse result as a DIDL-Lite-form XML string */
 	gchar* didl;
@@ -1769,7 +1821,7 @@ static void mafw_upnp_source_metadata_result(GUPnPDIDLLiteParser* parser,
 		gchar* objectid;
 
 		objectid = util_create_objectid(args->source, didl_node);
-		metadata = mafw_upnp_source_compile_metadata(args->meta_keys,
+		metadata = mafw_upnp_source_compile_metadata(args->mdata_keys,
 							      didl_node,
 							      args->didl);
 
@@ -1856,7 +1908,6 @@ static void mafw_upnp_source_metadata_cb(GUPnPServiceProxy* service,
 		}
 	}
 
-	g_strfreev(args->meta_keys);
         g_free(args->didl);
 	g_free(args);
 }
@@ -1874,7 +1925,6 @@ static void mafw_upnp_source_get_metadata(MafwSource *source,
 	MafwUPnPSourcePrivate *priv = MAFW_UPNP_SOURCE_GET_PRIVATE(self);
 	gchar* itemid = NULL;
 	MetadataArgs* args = NULL;
-	const gchar *const *meta_keys;
 	gchar* mdkeys_csv;
 	GError *error = NULL;
 
@@ -1904,23 +1954,16 @@ static void mafw_upnp_source_get_metadata(MafwSource *source,
 		return;
 	}
 
-	/* If the ALL_KEYS macro is used, we need to cat all known keys into
-	   a big string because otherwise UPnP servers won't do a thing. */
-	if (strcmp(MAFW_SOURCE_ALL_KEYS[0], metadata_keys[0]) == 0)
-		meta_keys = MAFW_SOURCE_LIST(KNOWN_METADATA_KEYS);
-	else
-		meta_keys = metadata_keys;
-
 	/* Some parameters we need to pass to the browse metadata return
 	 * callback */
 	args = g_new0(MetadataArgs, 1);
 	args->source = self;
 	args->callback = metadata_cb;
 	args->user_data = user_data;
-	args->meta_keys = util_strvdup(meta_keys);
+	args->mdata_keys = util_compile_mdata_keys(metadata_keys);
 
 	/* Convert the given metadata key array into a UPnP browse filter */
-	mdkeys_csv = didl_mafwkey_array_to_upnp_filter(meta_keys);
+	mdkeys_csv = didl_mafwkey_array_to_upnp_filter(metadata_keys);
 
 	g_debug("Get metadata: %s\n\tKeys: %s\n", object_id, mdkeys_csv);
 

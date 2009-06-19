@@ -31,6 +31,7 @@
 
 #include "mafw-upnp-source.h"
 #include "mafw-upnp-source-util.h"
+#include "mafw-upnp-source-didl.h"
 
 /**
  * util_udn_to_uuid:
@@ -97,28 +98,185 @@ gchar* util_uuid_to_udn(const gchar* uuid)
 	return g_string_free(udn, FALSE);
 }
 
+struct _upnp_map{
+	GType gtype;
+	const gchar *upnp_key;
+	const gchar *mafw_key;
+};
+
+static struct _upnp_map upnpmaps[] = {
+	{0, NULL, MAFW_METADATA_KEY_URI},
+	{0, NULL, MAFW_METADATA_KEY_CHILDCOUNT_1},
+	{0, NULL, MAFW_METADATA_KEY_MIME},
+	{0, NULL, MAFW_METADATA_KEY_DURATION},
+	{0, NULL, MAFW_METADATA_KEY_THUMBNAIL_URI},
+	{0, NULL, MAFW_METADATA_KEY_DIDL},
+	{0, NULL, MAFW_METADATA_KEY_IS_SEEKABLE},
+	{G_TYPE_STRING, DIDL_LYRICS_URI, MAFW_METADATA_KEY_LYRICS_URI},
+	{G_TYPE_STRING, DIDL_RES_PROTOCOL_INFO, MAFW_METADATA_KEY_PROTOCOL_INFO},
+	{G_TYPE_STRING, DIDL_ALBUM_ART_URI, MAFW_METADATA_KEY_ALBUM_ART_SMALL_URI},
+	{G_TYPE_STRING, DIDL_ALBUM_ART_URI, MAFW_METADATA_KEY_ALBUM_ART_MEDIUM_URI},
+	{G_TYPE_STRING, DIDL_ALBUM_ART_URI, MAFW_METADATA_KEY_ALBUM_ART_LARGE_URI},
+	{G_TYPE_STRING, DIDL_DISCOGRAPHY_URI, MAFW_METADATA_KEY_ARTIST_INFO_URI},
+	{G_TYPE_INT, DIDL_RES_BITRATE, MAFW_METADATA_KEY_AUDIO_BITRATE},
+	{G_TYPE_INT, DIDL_RES_BITRATE, MAFW_METADATA_KEY_VIDEO_BITRATE},
+	{G_TYPE_INT, DIDL_RES_BITRATE, MAFW_METADATA_KEY_BITRATE},
+	{G_TYPE_INT, DIDL_RES_SIZE, MAFW_METADATA_KEY_FILESIZE},
+	{G_TYPE_INT, DIDL_RES_COLORDEPTH, MAFW_METADATA_KEY_BPP},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_TITLE, MAFW_METADATA_KEY_TITLE},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_ARTIST, MAFW_METADATA_KEY_ARTIST},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_ALBUM, MAFW_METADATA_KEY_ALBUM},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_GENRE, MAFW_METADATA_KEY_GENRE},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_TRACK, MAFW_METADATA_KEY_TRACK},
+	{G_TYPE_INT, MAFW_METADATA_KEY_YEAR, MAFW_METADATA_KEY_YEAR},
+	{G_TYPE_INT, MAFW_METADATA_KEY_COUNT, MAFW_METADATA_KEY_COUNT},
+	{G_TYPE_INT, MAFW_METADATA_KEY_PLAY_COUNT, MAFW_METADATA_KEY_PLAY_COUNT},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_DESCRIPTION, MAFW_METADATA_KEY_DESCRIPTION},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_ENCODING, MAFW_METADATA_KEY_ENCODING},
+	{G_TYPE_LONG, MAFW_METADATA_KEY_ADDED, MAFW_METADATA_KEY_ADDED},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_THUMBNAIL, MAFW_METADATA_KEY_THUMBNAIL},
+	{G_TYPE_INT, MAFW_METADATA_KEY_RES_X, MAFW_METADATA_KEY_RES_X},
+	{G_TYPE_INT, MAFW_METADATA_KEY_RES_Y, MAFW_METADATA_KEY_RES_Y},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_COMMENT, MAFW_METADATA_KEY_COMMENT},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_TAGS, MAFW_METADATA_KEY_TAGS},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_ALBUM_INFO_URI, MAFW_METADATA_KEY_ALBUM_INFO_URI},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_LYRICS, MAFW_METADATA_KEY_LYRICS},
+	{G_TYPE_INT, MAFW_METADATA_KEY_RATING, MAFW_METADATA_KEY_RATING},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_COMPOSER, MAFW_METADATA_KEY_COMPOSER},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_FILENAME, MAFW_METADATA_KEY_FILENAME},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_COPYRIGHT, MAFW_METADATA_KEY_COPYRIGHT},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_AUDIO_CODEC, MAFW_METADATA_KEY_AUDIO_CODEC},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_ALBUM_ART_URI, MAFW_METADATA_KEY_ALBUM_ART_URI},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_ALBUM_ART, MAFW_METADATA_KEY_ALBUM_ART},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_VIDEO_CODEC, MAFW_METADATA_KEY_VIDEO_CODEC},
+	{G_TYPE_FLOAT, MAFW_METADATA_KEY_VIDEO_FRAMERATE, MAFW_METADATA_KEY_VIDEO_FRAMERATE},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_EXIF_XML, MAFW_METADATA_KEY_EXIF_XML},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_ICON_URI, MAFW_METADATA_KEY_ICON_URI},
+	{G_TYPE_STRING, MAFW_METADATA_KEY_ICON, MAFW_METADATA_KEY_ICON}
+};
+
+static GHashTable *_mafw_to_upnphash;
+
 /**
- * util_strvdup:
- * @original: A %NULL-terminated array of strings to copy or %NULL.
+ * util_init:
  *
- * Duplicates @original, turning %NULL-arrays into empty ones.
+ * Initializes the needed hash-table, to speed up the mafw-key->flags mapping
  */
-gchar** util_strvdup(const gchar* const* original)
+void util_init(void)
 {
-	gchar** copy;
-	guint i;
+	gint i = 0, keynum = G_N_ELEMENTS(upnpmaps);
 
-	if (original == NULL)
-		return g_new0(gchar*, 1);
+	if (_mafw_to_upnphash)
+		return;
 
-	/* May it be anyone who designed g_strv_length() must be a moron
-	 * for not makeing it const. */
-	copy = g_new(gchar*, g_strv_length((gchar **)original) + 1);
+	_mafw_to_upnphash = g_hash_table_new(g_str_hash, g_str_equal);
+	g_assert(_mafw_to_upnphash);
+	
+	for(i=0; i < keynum; i++)
+	{
+		g_hash_table_insert(_mafw_to_upnphash,
+					(gpointer)upnpmaps[i].mafw_key,
+					GINT_TO_POINTER(i+1));
+	}
+}
+
+/**
+ * util_get_id_from_mafwkey:
+ *
+ * Returns the ID of a mafw-key, or -1 if not supported
+ */
+static gint util_get_id_from_mafwkey(const gchar *mafwkey)
+{
+	return GPOINTER_TO_INT(g_hash_table_lookup(_mafw_to_upnphash,
+					mafwkey)) - 1;
+}
+
+/**
+ * util_get_upnpflag_from_mafwkey:
+ * @mafwkey:	MAFW metadata key
+ *
+ * Returns the flag of the asked metadata-key, or 0, if not supported
+ */
+static guint64 util_get_upnpflag_from_mafwkey(const gchar *mafwkey)
+{
+	guint64 flagn = 1;
+	gint id = util_get_id_from_mafwkey(mafwkey);
+
+	if (id == -1)
+		return 0;
+
+	flagn <<= id;
+	return flagn;
+}
+
+
+/**
+ * didl_mafwkey_to_upnp_result:
+ * @id: The ID to convert
+ * @type:    The G_TYPE of the returned value
+ *
+ * Converts MAFW metadata keys to their UPnP equivalents and tells what the
+ * parameter's type is so that we can put the correct type into a GValue.
+ * This function is mainly used when parsing the DIDL-Lite result thru the
+ * didl_fallback() function.
+ *
+ * Note: some of these mappings are actually attributes of a <res> element,
+ * but it doesn't matter that much since both cases (property & res attr)
+ * are checked.
+ *
+ * Returns: The UPnP-ified key or NULL if mapping cannot be done.
+ */
+const gchar* util_mafwkey_to_upnp_result(gint id, gint* type)
+{
+	struct _upnp_map curmap;
+
+	if (id > G_N_ELEMENTS(upnpmaps)-1)
+		return NULL;
+	curmap = upnpmaps[id];
+	
+	*type = curmap.gtype;
+	return curmap.upnp_key;
+}
+
+/**
+ * util_get_metadatakey_from_id:
+ * @id:	ID of the metadata
+ *
+ * Returns the mafw-metadata-key, defined by the ID.
+ */
+const gchar *util_get_metadatakey_from_id(gint id)
+{
+	struct _upnp_map curmap;
+
+	if (id > G_N_ELEMENTS(upnpmaps)-1)
+		return NULL;
+	curmap = upnpmaps[id];
+	
+	return curmap.mafw_key;
+}
+
+/**
+ * util_compile_mdata_keys:
+ * @original:	metadatakeys
+ *
+ * Converts the list of metadata-keys into flags.
+ */
+guint64 util_compile_mdata_keys(const gchar* const* original)
+{
+	guint64 mkeys = 0;
+	gint i;
+	
+	if (original == NULL || original[0] == NULL)
+		return 0;
+
+	if (strcmp(MAFW_SOURCE_ALL_KEYS[0], original[0]) == 0)
+		return G_MAXUINT64;
+	
 	for (i = 0; original[i]; i++)
-		copy[i] = g_strdup(original[i]);
-	copy[i] = NULL;
-
-	return copy;
+	{
+		mkeys |= util_get_upnpflag_from_mafwkey(original[i]);
+	}
+	return mkeys;
 }
 
 /**
@@ -168,4 +326,3 @@ gchar* util_create_objectid(MafwUPnPSource* source, xmlNode* didl_node)
 
 	return objectid;
 }
-

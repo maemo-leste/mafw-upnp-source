@@ -60,16 +60,24 @@ static gchar* DIDL_CONTAINER = \
 void test_didl_item_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
 		       gpointer user_data)
 {
+	GList *resources;
 	xmlNode* res_node;
 	gchar* value;
 	gint type;
 	gint num;
+	GHashTable *mdata = mafw_metadata_new();
+	GValue *val;
+	gboolean is_audio, is_supported = FALSE;
 
 	fail_if(node == NULL, "GUPnP is %s", "broken");
 
 	/* Protocol info stuff */
-	res_node = didl_get_http_res(node);
-	fail_if(res_node == NULL, "Unable to get a resource %s", "node");
+	resources = didl_get_supported_resources(node);
+	fail_if(resources == NULL || resources->data == NULL,
+				"Unable to get a resource node");
+	fail_if(g_list_length(resources) != 1, "Resource list not correct");
+	
+	res_node = resources->data;
 
 	value = didl_res_get_protocol_info(res_node, 0);
 	fail_if(value == NULL);
@@ -92,27 +100,28 @@ void test_didl_item_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
 	g_free(value);
 
 	/* Properties */
-	value = didl_get_mimetype(node);
-	fail_if(value == NULL);
-	fail_if(strcmp(value, "audio/mpeg") != 0, "Wrong MIME: %s", value);
-	g_free(value);
+	
+	is_audio = didl_check_filetype(node, &is_supported);
+	
+	fail_if(is_audio == FALSE, "Item should be audio");
+	fail_if(is_supported == FALSE, "Item should be supported");
+	
+	didl_get_mimetype(mdata, FALSE, TRUE, resources);
+	val = mafw_metadata_first(mdata, MAFW_METADATA_KEY_MIME);
+	fail_if(val == NULL);
+	fail_if(strcmp(g_value_get_string(val), "audio/mpeg") != 0, "Wrong MIME: %s", value);
 
-	num = didl_get_duration(node);
+	num = didl_get_duration(res_node);
 	fail_if(num != 272, "Wrong duration: %d", num);
 
 	num = didl_get_childcount(node);
 	fail_if(num != -1, "Childcount %d found for an item node", num);
 
-	value = didl_get_http_res_uri(node);
-	fail_if(strcmp(value,
+	didl_get_http_res_uri(mdata, resources, TRUE);
+	val = mafw_metadata_first(mdata, MAFW_METADATA_KEY_URI);
+	fail_if(strcmp(g_value_get_string(val),
 		       "http://172.23.117.242:9000/disk/music/O18132.mp3") != 0,
-		"Wrong URI: %s", value);
-	g_free(value);
-
-	value = didl_get_thumbnail_uri(node);
-	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
-		"Wrong thumbnail URI: %s", value);
-	g_free(value);
+		"Wrong URI: %s", g_value_get_string(val));
 
 	value = didl_get_album_art_uri(node);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
@@ -121,77 +130,71 @@ void test_didl_item_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
 	
 	/* Fallbacks */
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_LYRICS_URI, &type);
+	value = didl_fallback(node, res_node, 7, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/lyrics.txt") != 0,
 		"Wrong lyrics URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 	
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_ALBUM_ART_SMALL_URI, &type);
+	value = didl_fallback(node, res_node, 9, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
 		"Wrong small album art URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_ALBUM_ART_MEDIUM_URI, &type);
+	value = didl_fallback(node, res_node, 10, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
 		"Wrong medium album art URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_ALBUM_ART_LARGE_URI, &type);
+	value = didl_fallback(node, res_node, 11, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
 		"Wrong large album art URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_ARTIST_INFO_URI, &type);
+	value = didl_fallback(node, res_node, 12, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/disco.html") != 0,
 		"Wrong artist info URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_AUDIO_BITRATE, &type);
+	value = didl_fallback(node, res_node, 13, &type);
 	fail_if(strcmp(value, "31337") != 0,
 		"Wrong audio bitrate: %s", value);
 	fail_if(type != G_TYPE_INT, "Wrong type");
 	g_free(value);
 	
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_VIDEO_BITRATE, &type);
+	value = didl_fallback(node, res_node, 14, &type);
 	fail_if(strcmp(value, "31337") != 0,
 		"Wrong video bitrate: %s", value);
 	fail_if(type != G_TYPE_INT, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_BITRATE, &type);
+	value = didl_fallback(node, res_node, 15, &type);
 	fail_if(strcmp(value, "31337") != 0,
 		"Wrong bitrate: %s", value);
 	fail_if(type != G_TYPE_INT, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_FILESIZE, &type);
+	value = didl_fallback(node, res_node, 16, &type);
 	fail_if(strcmp(value, "6548309") != 0, "Wrong filesize: %s", value);
 	fail_if(type != G_TYPE_INT, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, MAFW_METADATA_KEY_BPP, &type);
+	value = didl_fallback(node, res_node, 17, &type);
 	fail_if(strcmp(value, "32") != 0, "Wrong BPP: %s", value);
 	fail_if(type != G_TYPE_INT, "Wrong type");
-	g_free(value);
-
-	type = 0;
-	value = didl_fallback(node, "foo", &type);
-	fail_if(strcmp(value, "bar") != 0, "Wrong foo: %s", value);
-	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 }
 
@@ -201,16 +204,22 @@ void test_didl_container_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
 	gchar* value;
 	gint num;
 	xmlNode* res_node;
+	GHashTable *mdata = mafw_metadata_new();
+	GValue *val;
+	GList *resources;
 
 	fail_if(node == NULL, "GUPnP is %s", "broken");
 
-	value = didl_get_mimetype(node);
-	fail_if(strcmp(value, MAFW_METADATA_VALUE_MIME_CONTAINER) != 0,
+	didl_get_mimetype(mdata, TRUE, TRUE, resources);
+	val = mafw_metadata_first(mdata, MAFW_METADATA_KEY_MIME);
+	fail_if(val == NULL);
+	fail_if(strcmp(g_value_get_string(val), MAFW_METADATA_VALUE_MIME_CONTAINER) != 0,
 		"Wrong MIME for container: %s", value);
-	g_free(value);
 
-	res_node = didl_get_http_res(node);
-	fail_if(res_node == NULL, "Unable to get a resource %s", "node");
+	resources = didl_get_supported_resources(node);
+	fail_if(resources == NULL || resources->data == NULL,
+				"Unable to get a resource node");
+	fail_if(g_list_length(resources) != 1, "Resource list not correct");
 
 	num = didl_get_childcount(node);
 	fail_if(num != 10, "wrong childcount: %d", num);

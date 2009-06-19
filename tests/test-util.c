@@ -61,22 +61,6 @@ START_TEST(test_util_uuid_to_udn)
 }
 END_TEST
 
-START_TEST(test_util_strvdup)
-{
-	gchar** orig;
-	gchar** copy;
-	int i;
-
-	orig = g_strsplit("all your base are belong to us", " ", 0);
-	copy = util_strvdup((const gchar* const*) orig);
-	for (i = 0; i < 7; i++)
-		fail_unless(strcmp(orig[i], copy[i]) == 0, "Wrong string");
-
-	g_strfreev(copy);
-	g_strfreev(orig);
-}
-END_TEST
-
 START_TEST(test_util_compare_uint)
 {
 	fail_unless(util_compare_uint(5, 10000000) < 0);
@@ -123,7 +107,6 @@ int main(void)
 	suite_add_tcase(suite, tc);
 	tcase_add_test(tc, test_util_udn_to_uuid);
 	tcase_add_test(tc, test_util_uuid_to_udn);
-	tcase_add_test(tc, test_util_strvdup);
 	tcase_add_test(tc, test_util_compare_uint);
 	tcase_add_test(tc, test_util_create_objectid);
 

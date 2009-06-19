@@ -34,20 +34,21 @@
 #define DIDL_ALBUM "upnp:album"
 
 #define DIDL_RES "res"
+#define DIDL_CLASS "upnp:class"
 #define DIDL_RES_DURATION "duration"
+#define DIDL_RES_PROTOCOL_INFO "protocolInfo"
+#define DIDL_RES_RESOLUTION "resolution"
+#define DIDL_LYRICS_URI "lyricsURI"
+#define DIDL_ALBUM_ART_URI "albumArtURI"
+#define DIDL_DISCOGRAPHY_URI "artistDiscographyURI"
 #define DIDL_RES_BITRATE "bitrate"
 #define DIDL_RES_SIZE "size"
 #define DIDL_RES_COLORDEPTH "colorDepth"
-#define DIDL_RES_RESOLUTION "resolution"
 
-#define DIDL_RES_PROTOCOL_INFO "protocolInfo"
 #define DIDL_RES_PROTOCOL_INFO_DELIMITER ":"
 #define DIDL_RES_PROTOCOL_INFO_HTTP "http-get"
 
 #define DIDL_CHILDCOUNT "childCount"
-#define DIDL_ALBUM_ART_URI "albumArtURI"
-#define DIDL_LYRICS_URI "lyricsURI"
-#define DIDL_DISCOGRAPHY_URI "artistDiscographyURI"
 
 #define DIDL_CLASS_AUDIO "object.item.audioItem"
 #define DIDL_CLASS_IMAGE "object.item.imageItem"
@@ -56,23 +57,25 @@
 /*----------------------------------------------------------------------------
   Resource information extraction
   ----------------------------------------------------------------------------*/
-xmlNode* didl_get_http_res(xmlNode* didl_object);
-gchar* didl_get_http_res_uri(xmlNode* didl_object);
+GList *didl_get_supported_resources(xmlNode *didl_node);
+void didl_get_http_res_uri(GHashTable *metadata, GList *properties,
+				gboolean is_audio);
+gboolean didl_check_filetype(xmlNode *didl_node, gboolean *is_supported);
 
 gchar* didl_res_get_protocol_info(xmlNode* res_node, gint field);
 
-gint didl_get_duration(xmlNode* res_node);
-gchar* didl_get_mimetype(xmlNode* didl_object);
+gint didl_get_duration(xmlNode *first_res);
+void didl_get_mimetype(GHashTable *metadata, gboolean is_container,
+			gboolean is_audio, GList* properties);
 gint didl_get_childcount(xmlNode* didl_object);
 
-gchar* didl_get_thumbnail_uri(xmlNode* didl_node);
 gchar* didl_get_album_art_uri(xmlNode* didl_object);
 
 gint8 didl_get_seekability(xmlNode* didl_object);
 
-gchar* didl_fallback(xmlNode* didl_object, const gchar* key, gint* type);
+gchar* didl_fallback(xmlNode* didl_object, xmlNode* res_node,gint id,
+			gint* type);
 
-const gchar* didl_mafwkey_to_upnp_result(const gchar* mafwkey, gint* type);
 
 /*----------------------------------------------------------------------------
   Browse filter
