@@ -691,6 +691,14 @@ static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 	}
 	keys &= ~MUPnPSrc_MKey_Childcount;
 
+	/* Do we need the class?? */
+	if (!is_container && ((keys & MUPnPSrc_MKey_URI) ==  MUPnPSrc_MKey_URI ||
+				(keys & MUPnPSrc_MKey_Thumbnail_URI) ==
+					MUPnPSrc_MKey_Thumbnail_URI))
+	{
+		is_audio = didl_check_filetype(didl_node, &is_supported);
+		
+	}
 	
 	if (is_audio && (keys & MUPnPSrc_MKey_Thumbnail_URI) == MUPnPSrc_MKey_Thumbnail_URI)
 	{
@@ -701,15 +709,6 @@ static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 		g_free(value);
 	}
 	keys &= ~MUPnPSrc_MKey_Thumbnail_URI;
-
-	/* Do we need the class?? */
-	if (!is_container && ((keys & MUPnPSrc_MKey_URI) ==  MUPnPSrc_MKey_URI ||
-				(keys & MUPnPSrc_MKey_Thumbnail_URI) ==
-					MUPnPSrc_MKey_Thumbnail_URI))
-	{
-		is_audio = didl_check_filetype(didl_node, &is_supported);
-		
-	}
 
 	if ((keys & MUPnPSrc_MKey_DIDL) == MUPnPSrc_MKey_DIDL)
 	{

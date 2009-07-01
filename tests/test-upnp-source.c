@@ -43,12 +43,6 @@
 #include <libgupnp/gupnp.h>
 #include <libgupnp-av/gupnp-av.h>
 
-#ifdef __MAEMO__
-# include <dbus/dbus.h>
-# include <dbus/dbus-glib-lowlevel.h>
-# include <conic.h>
-#endif
-
 #include "../upnp-source/mafw-upnp-source.h"
 #include "../upnp-source/mafw-upnp-source-didl.h"
 #include "../upnp-source/mafw-upnp-source-util.h"
@@ -96,6 +90,39 @@ int setsockopt(int fd, int level, int optname,
 }
 # endif /* LINUX_VERSION_CODE */
 #endif /* __ARMEL__ */
+
+START_TEST(test_plugin)
+{
+	MafwRegistry *reg = mafw_registry_get_instance();
+	gboolean retv;
+	GError *err = NULL;
+	GList *tlist;
+	
+	err = NULL;
+	retv = mafw_registry_load_plugin(reg,
+				"mafw-upnp-source", &err);
+	fail_unless(retv && !err);
+	
+	tlist = mafw_registry_list_plugins(reg);
+	fail_unless(g_list_length(tlist) == 1);
+	g_list_free(tlist);
+	tlist = mafw_registry_get_sources(MAFW_REGISTRY(reg)); /* Do not free this list */
+	fail_unless(g_list_length(tlist) == 0);
+	tlist = mafw_registry_get_renderers(MAFW_REGISTRY(reg)); /* Do not free this list */
+	fail_unless(g_list_length(tlist) == 0);
+	
+	mafw_registry_unload_plugin(reg, "mafw-upnp-source", &err);
+	fail_unless(retv && !err);
+	
+	tlist = mafw_registry_list_plugins(reg);
+	fail_unless(g_list_length(tlist) == 0);
+	g_list_free(tlist);
+	tlist = mafw_registry_get_sources(MAFW_REGISTRY(reg)); /* Do not free this list */
+	fail_unless(g_list_length(tlist) == 0);
+	tlist = mafw_registry_get_renderers(MAFW_REGISTRY(reg)); /* Do not free this list */
+	fail_unless(g_list_length(tlist) == 0);
+}
+END_TEST
 
 struct expected_results {
 	GUPnPServiceProxy *proxy;
@@ -149,13 +176,76 @@ void verify_results(struct expected_results *expected)
 	g_free((gchar **)results.names);
 }
 
+static gboolean need_browse_results;
+static gboolean end_action_return_false;
+static gboolean with_wrong_didl;
+static gint browse_called;
+
 void browse_cb(MafwSource *source, guint browse_id, gint remaining,
 	       guint index, const gchar *objectid, GHashTable *metadata,
 	       gpointer user_data, const GError *error)
 {
 	/* Dummy browse result callback. */
+	browse_called++;
+	if (end_action_return_false || with_wrong_didl)
+	{
+		fail_if(error == NULL);
+		fail_if(metadata != NULL);
+		return;
+	}
+	
+	if (need_browse_results)
+	{
+		fail_if(metadata == NULL);
+		fail_if(error != NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_TITLE) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_ALBUM_ART_LARGE_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_ALBUM_ART_MEDIUM_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_ALBUM_ART_SMALL_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_LYRICS_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_BPP) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_BITRATE) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_FILESIZE) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_DURATION) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_IS_SEEKABLE) == NULL);
+	}
+	else
+	{
+		fail_if(metadata != NULL);
+	}
 }
 
+static gint mdata_called;
+
+static void mdata_result(MafwSource *self, const gchar *object_id,
+			GHashTable *metadata, gpointer user_data,
+			const GError *error)
+{
+	mdata_called++;
+	if (end_action_return_false || with_wrong_didl)
+	{
+		fail_if(error == NULL);
+		fail_if(metadata != NULL);
+	}
+	else
+	{
+		fail_if(error != NULL);
+		fail_if(metadata == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_TITLE) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_ALBUM_ART_LARGE_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_ALBUM_ART_MEDIUM_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_ALBUM_ART_SMALL_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_LYRICS_URI) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_BPP) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_BITRATE) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_FILESIZE) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_DURATION) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_IS_SEEKABLE) == NULL);
+		fail_if(mafw_metadata_first(metadata, MAFW_METADATA_KEY_DIDL) == NULL);
+	}
+}
 
 START_TEST(test_basic_get_metadata)
 {
@@ -191,6 +281,15 @@ START_TEST(test_basic_get_metadata)
 
 	verify_results(&expected);
 
+	need_browse_results = TRUE;
+	mdata_called = 0;
+	mafw_source_get_metadata(source,
+				 "w::whatever", 
+				 MAFW_SOURCE_ALL_KEYS,
+				 mdata_result,
+				 user_data);
+	fail_if(mdata_called != 1);
+	need_browse_results = FALSE;
 	mafw_upnp_source_plugin_deinitialize();
 	
 	g_object_unref(source);
@@ -233,15 +332,20 @@ static void test_browse(gchar const *action,
 	filter = mafw_filter_parse(sexp);
 	fail_if(filter == NULL, "Could not parse filter: %s", sexp);
 	if (filter != NULL) {
-		mafw_source_browse(source,
+		if (mafw_source_browse(source,
 				   "w::whatever", FALSE,
 				   filter, expected.values[5],
 				   MAFW_SOURCE_NO_KEYS,
 				   expected.skip_count, expected.item_count,
-				   browse_cb, user_data);
-		mafw_filter_free(filter);
+				   browse_cb, user_data) !=
+					MAFW_SOURCE_INVALID_BROWSE_ID)
+		{
+			verify_results(&expected);
+		}
+		else
+			fail_if(exsc != NULL);
 
-		verify_results(&expected);
+		mafw_filter_free(filter);
 	}
 
 	mafw_upnp_source_plugin_deinitialize();
@@ -281,17 +385,160 @@ START_TEST(test_basic_browse_null_metadata)
 
 	memset((void*)&results, '\0', sizeof (struct expected_results));
 
+	browse_called = 0;
 	browse_id =
 		mafw_source_browse(source,
 				   "w::whatever", FALSE,
 				   NULL, expected.values[5], NULL,
 				   expected.skip_count, expected.item_count,
 				   browse_cb, user_data);
+	fail_if(browse_called != 1);
+	fail_if(browse_id != MAFW_SOURCE_INVALID_BROWSE_ID);
+	browse_called = 0;
 
 	mafw_upnp_source_plugin_deinitialize();
 	g_object_unref(source);
 }
 END_TEST
+
+struct _MafwUPnPSourcePrivate {
+	/* The UPnP device providing a CDS service */
+	GUPnPDeviceProxy* device;
+
+	/* The CDS (ContentDirectoryService) provided by this device */
+	GUPnPServiceProxy* service;
+
+	/* browse_id => GUPnPServiceProxyAction associations for ->cancel(). */
+	GTree *browses;
+};
+
+static gboolean return_null_action;
+START_TEST(test_errors)
+{
+	MafwSource *source = NULL;
+	guint browse_id = 0;
+
+	mafw_upnp_source_plugin_initialize(
+		MAFW_REGISTRY(mafw_registry_get_instance()));
+
+	source = MAFW_SOURCE(mafw_upnp_source_new("name", "uuid"));
+
+	fail_if(NULL == source, "Could not create source");
+
+	need_browse_results = TRUE;
+	end_action_return_false = TRUE;
+	browse_id = mafw_source_browse(source,
+				   "w::whatever", FALSE,
+				   NULL, NULL, MAFW_SOURCE_ALL_KEYS,
+				   0, 0,
+				   browse_cb, NULL);
+	fail_if(browse_id == MAFW_SOURCE_INVALID_BROWSE_ID);
+	end_action_return_false = FALSE;
+
+	with_wrong_didl = TRUE;
+	browse_id = mafw_source_browse(source,
+				   "w::whatever", FALSE,
+				   NULL, NULL, MAFW_SOURCE_ALL_KEYS,
+				   0, 0,
+				   browse_cb, NULL);
+	fail_if(browse_id == MAFW_SOURCE_INVALID_BROWSE_ID);
+	with_wrong_didl = FALSE;
+
+	need_browse_results = FALSE;
+
+	return_null_action = TRUE;
+	browse_id = mafw_source_browse(source,
+				   "w::whatever", FALSE,
+				   NULL, NULL, MAFW_SOURCE_ALL_KEYS,
+				   0, 0,
+				   browse_cb, NULL);
+	fail_if(browse_id != MAFW_SOURCE_INVALID_BROWSE_ID);
+	return_null_action = FALSE;
+
+	need_browse_results = TRUE;
+	end_action_return_false = TRUE;
+	mafw_source_get_metadata(source,
+				 "w::whatever", 
+				 MAFW_SOURCE_ALL_KEYS,
+				 mdata_result,
+				 NULL);
+	end_action_return_false = FALSE;
+
+	with_wrong_didl = TRUE;
+	mafw_source_get_metadata(source,
+				 "w::whatever", 
+				 MAFW_SOURCE_ALL_KEYS,
+				 mdata_result,
+				 NULL);
+	with_wrong_didl = FALSE;
+
+	need_browse_results = FALSE;
+
+	mafw_upnp_source_plugin_deinitialize();
+	g_object_unref(source);
+}
+END_TEST
+
+START_TEST(test_basic_browse)
+{
+	MafwSource *source = NULL;
+	guint browse_id = 0;
+
+	mafw_upnp_source_plugin_initialize(
+		MAFW_REGISTRY(mafw_registry_get_instance()));
+
+	source = MAFW_SOURCE(mafw_upnp_source_new("name", "uuid"));
+
+	fail_if(NULL == source, "Could not create source");
+
+	need_browse_results = TRUE;
+	browse_called = 0;
+	browse_id =
+		mafw_source_browse(source,
+				   "w::whatever", FALSE,
+				   NULL, NULL, MAFW_SOURCE_ALL_KEYS,
+				   1, 1,
+				   browse_cb, NULL);
+	fail_if(browse_id == MAFW_SOURCE_INVALID_BROWSE_ID);
+	fail_if(browse_called != 1, "Called: %d", browse_called);
+
+	browse_called = 0;
+	browse_id =
+		mafw_source_browse(source,
+				   "w::", FALSE,
+				   NULL, NULL, MAFW_SOURCE_ALL_KEYS,
+				   1, 4,
+				   browse_cb, NULL);
+	fail_if(browse_id == MAFW_SOURCE_INVALID_BROWSE_ID);
+	fail_if(browse_called != 3, "Called: %d", browse_called);
+
+	browse_called = 0;
+	browse_id =
+		mafw_source_browse(source,
+				   "w::whatever", FALSE,
+				   NULL, NULL, MAFW_SOURCE_ALL_KEYS,
+				   0, 0,
+				   browse_cb, NULL);
+	fail_if(browse_id == MAFW_SOURCE_INVALID_BROWSE_ID);
+	fail_if(browse_called != 3, "Called: %d", browse_called);
+	need_browse_results = FALSE;
+
+	/* Test cancel */
+	browse_id =
+		mafw_source_browse(source,
+				   "w::whatever", FALSE,
+				   NULL, NULL, MAFW_SOURCE_ALL_KEYS,
+				   0, 0,
+				   browse_cb, NULL);
+	MAFW_UPNP_SOURCE(source)->priv->service = (gpointer)mafw_upnp_source_new("name2", "uuid2");
+	fail_unless(mafw_source_cancel_browse(source, browse_id, NULL));
+	fail_if(mafw_source_cancel_browse(source, browse_id, NULL));
+
+	mafw_upnp_source_plugin_deinitialize();
+	g_object_unref(source);
+}
+END_TEST
+
 
 START_TEST(test_browse_with_filter)
 {
@@ -317,6 +564,8 @@ START_TEST(test_browse_with_filter)
 		    "everwhat exists true", "(everwhat?)");
 	test_browse("Search", fields,
 		    "everwhat exists false", "(!(everwhat?))");
+	test_browse("Search", fields,
+		    NULL, "(everwhat~hih*i)");
 
 	/* Complex expressions */
 	test_browse("Search", fields,
@@ -348,74 +597,6 @@ START_TEST(test_browse_with_filter)
 }
 END_TEST
 
-#ifdef __MAEMO__
-static void conic_error_cb(MafwRegistry* registry, const gchar* plugin_name,
-			   guint domain, gint code, const gchar* message,
-			   gpointer user_data)
-{
-	fail_if(message == NULL, "No error message");
-	fail_if(strcmp(message, "Connection failed"),
-		"Wrong error message: %s", message);
-	fail_if(domain != MAFW_EXTENSION_ERROR, "Wrong error domain: %d", domain);
-	fail_if(code != MAFW_EXTENSION_ERROR_NETWORK_DOWN, "Wrong error code: %d",
-		code);
-
-	g_main_loop_quit((GMainLoop*) user_data);
-}
-
-static gboolean spoof_icd_dbus_message(gpointer data)
-{
-	DBusConnection* conn;
-	DBusMessage* msg;
-	const gchar* iap = "foobar";
-	const gchar* bearer = "xyzzy";
-	const gchar* state = "IDLE";
-	DBusError error;
-
-	dbus_error_init(&error);
-	conn = dbus_bus_get(DBUS_BUS_SYSTEM, &error);
-	if (dbus_error_is_set(&error) == TRUE)
-		g_error("Unable to connect to system DBus: %s", error.message);
-	dbus_connection_setup_with_g_main(conn, NULL);
-
-	msg = dbus_message_new_signal("/com/nokia/icd",
-				      "com.nokia.icd",
-				      "status_changed");
-	
-	dbus_message_append_args(msg,
-				 DBUS_TYPE_STRING, &iap,
-				 DBUS_TYPE_STRING, &bearer,
-				 DBUS_TYPE_STRING, &state,
-				 DBUS_TYPE_INVALID);
-
-	dbus_connection_send(conn, msg, NULL);
-	dbus_connection_unref(conn);
-
-	return FALSE;
-}
-
-START_TEST(test_conic)
-{
-	MafwSource* source;
-	GMainLoop* loop;
-
-	mafw_upnp_source_plugin_initialize(
-		MAFW_REGISTRY(mafw_registry_get_instance()));
-	source = MAFW_SOURCE(mafw_upnp_source_new("name", "uuid"));
-
-	loop = g_main_loop_new(NULL, FALSE);
-
-	g_signal_connect(mafw_registry_get_instance(), "error",
-			 G_CALLBACK(conic_error_cb), loop);
-
-	g_idle_add(spoof_icd_dbus_message, NULL);
-	g_main_loop_run(loop);
-	g_main_loop_unref(loop);
-
-	mafw_upnp_source_plugin_deinitialize();
-}
-END_TEST
-#endif
 
 /****************************************************************************
  * Container changed signal
@@ -484,30 +665,31 @@ int main(void)
 	g_type_init();
 	g_thread_init(NULL);
 
+	checkmore_wants_dbus();
 	suite = suite_create("MafwUPnPSource");
 
+	tc = tcase_create("Init");
+	suite_add_tcase(suite, tc);
+if (1)	tcase_add_test(tc, test_plugin);
+	
 	/* Browse tests */
 	tc = tcase_create("Browse");
 	suite_add_tcase(suite, tc);
-	tcase_add_test(tc, test_browse_with_filter);
-	tcase_add_test(tc, test_basic_browse_null_metadata);
+if(1)	tcase_add_test(tc, test_browse_with_filter);
+if(1)	tcase_add_test(tc, test_basic_browse_null_metadata);
+if(1)	tcase_add_test(tc, test_basic_browse);
 
 	/* Metadata tests */
 	tc = tcase_create("Get metadata");
 	suite_add_tcase(suite, tc);
-	tcase_add_test(tc, test_basic_get_metadata);
-
-	/* ConIC tests */
-#ifdef __MAEMO__
-	tc = tcase_create("ConIC");
-	//suite_add_tcase(suite, tc);
-	tcase_add_test(tc, test_conic);
-#endif
+if(1)	tcase_add_test(tc, test_basic_get_metadata);
 
 	/* Other tests */
 	tc = tcase_create("Other");
 	suite_add_tcase(suite, tc);
-	tcase_add_test(tc, test_container_changed);
+if(1)	tcase_add_test(tc, test_container_changed);
+
+if(1)	tcase_add_test(tc, test_errors);
 
         return checkmore_run(srunner_create(suite), FALSE);
 }
@@ -526,7 +708,15 @@ GUPnPServiceProxyAction *gupnp_service_proxy_begin_action(
 	gchar *next;
 	gint i;
 	GPtrArray *names;
+	
+	if (return_null_action)
+		return NULL;
 
+	if (need_browse_results)
+	{
+		callback(proxy, (GUPnPServiceProxyAction*) 0x2345, user_data);
+		return (GUPnPServiceProxyAction *) 0x1234; 
+	}
         results.proxy = proxy;
         results.action = action;
         results.cb = callback;
@@ -563,5 +753,70 @@ GUPnPServiceProxyAction *gupnp_service_proxy_begin_action(
         return (GUPnPServiceProxyAction *) 0x1234;
 }
 
-/* vi: set noexpandtab ts=8 sw=8 cino=t0,(0: */
+static gchar* DIDL_ITEM = \
+	"<DIDL-Lite xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\">" \
+	 "<item id=\"18132\" refID=\"18073\" parentID=\"18131\" restricted=\"1\">" \
+	  "<dc:title>Test Animals</dc:title>" \
+	  "<upnp:albumArtURI>http://foo.bar.com:31337/albumArt.png</upnp:albumArtURI>" \
+	  "<upnp:lyricsURI>http://foo.bar.com:31337/lyrics.txt</upnp:lyricsURI>" \
+	  "<upnp:artistDiscographyURI>http://foo.bar.com:31337/disco.html</upnp:artistDiscographyURI>" \
+	  "<res colorDepth=\"32\" bitrate=\"31337\" size=\"6548309\" duration=\"0:04:32.770\" protocolInfo=\"http-get:*:audio/mpeg:DLNA.ORG_OP=11\" >http://172.23.117.242:9000/disk/music/O18132.mp3</res>" \
+	  "<upnp:class>object.item.audioItem.musicTrack</upnp:class>" \
+	  "<foo>bar</foo>" \
+	 "</item>" \
+	"</DIDL-Lite>";
+static gchar* FAKE_DIDL_ITEM = \
+	"<DIDL-Lite xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\">" \
+	 "And here comes the problem.....";
 
+gboolean gupnp_service_proxy_end_action(GUPnPServiceProxy *proxy,
+					GUPnPServiceProxyAction *action,
+					GError **error, ...)
+{
+	va_list list;
+	gchar *next;
+	gpointer *data;
+
+	if (end_action_return_false)
+	{
+		g_set_error(error, MAFW_SOURCE_ERROR,
+				    MAFW_SOURCE_ERROR_BROWSE_RESULT_FAILED,
+				    "GUPnP: testerr"); 
+		return FALSE;
+	}
+
+	va_start(list, error);
+	(gchar *)va_arg(list, gchar*);
+	(gint)va_arg(list, gint);
+	data = va_arg(list, gpointer*);
+	if (with_wrong_didl)
+	{
+		*data = g_strdup(FAKE_DIDL_ITEM);
+	}
+	else
+	{
+		*data = g_strdup(DIDL_ITEM);
+	}
+	
+	if ((gchar *)va_arg(list, gchar*))
+	{
+		(gint)va_arg(list, gint);
+		data = va_arg(list, gpointer*);
+		*data = (gpointer)3;
+		
+		(gchar *)va_arg(list, gchar*);
+		(gint)va_arg(list, gint);
+		data = va_arg(list, gpointer*);
+		*data = (gpointer)3;
+	}
+
+	return TRUE;
+}
+
+void gupnp_service_proxy_cancel_action (GUPnPServiceProxy *proxy,
+					GUPnPServiceProxyAction *action)
+{
+	return;
+}
+
+/* vi: set noexpandtab ts=8 sw=8 cino=t0,(0: */
