@@ -1326,7 +1326,7 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 		GError* error = NULL;
 		if (gupnp_error != NULL)
 		{
-			g_warning("GUPnP error: %s", gupnp_error->message);
+			g_warning("Action failed: %s", gupnp_error->message);
 
 			/* g_set_error() takes its message argument as a
 			 * printf() format string.  gupnp_error->message
@@ -1334,7 +1334,7 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 			g_set_error(&error,
 				    MAFW_SOURCE_ERROR,
 				    MAFW_SOURCE_ERROR_BROWSE_RESULT_FAILED,
-				    "GUPnP: %s", gupnp_error->message);
+				    "Action failed: %s", gupnp_error->message);
 			g_error_free(gupnp_error);
 		}
 
@@ -1372,13 +1372,13 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 			g_set_error(&error,
 				    MAFW_SOURCE_ERROR,
 				    MAFW_SOURCE_ERROR_BROWSE_RESULT_FAILED,
-				    "GUPnP: %s", gupnp_error->message);
+				    "DIDL-Lite parsing failed: %s", gupnp_error->message);
 
 			/* Call the callback function with invalid values and
 			   an error. */
 			if (args->remaining_count > 0)
 			{
-				g_warning("GUPnP error: %s."
+				g_warning("DIDL-Lite parsing failed: %s."
 					  "Terminating browse session.",
 					  gupnp_error->message);
 
@@ -1864,11 +1864,11 @@ static void mafw_upnp_source_metadata_cb(GUPnPServiceProxy* service,
 		GError* error = NULL;
 
 		/* Wrong result or no result at all */
-		g_warning("GUPnP error: %s", gupnp_error->message);
+		g_warning("Metadata result error: %s", gupnp_error->message);
 		g_set_error(&error,
 			    MAFW_SOURCE_ERROR,
 			    MAFW_SOURCE_ERROR_GET_METADATA_RESULT_FAILED,
-			    "GUPnP: %s", gupnp_error->message);
+			    "Metadata result error: %s", gupnp_error->message);
 
 		/* Call the callback with invalid values and an error */
 		args->callback(MAFW_SOURCE(args->source),
@@ -1891,11 +1891,13 @@ static void mafw_upnp_source_metadata_cb(GUPnPServiceProxy* service,
 			GError* error = NULL;
 
 			/* DIDL-Lite parsing failed */
-			g_warning("GUPnP error: %s", gupnp_error->message);
+			g_warning("Metadata DIDL-Lite parsing failed: %s",
+					gupnp_error->message);
 			g_set_error(&error,
 				    MAFW_SOURCE_ERROR,
 				    MAFW_SOURCE_ERROR_GET_METADATA_RESULT_FAILED,
-				    "GUPnP: %s", gupnp_error->message);
+				    "Metadata DIDL-Lite parsing failed: %s",
+						gupnp_error->message);
 
 			/* Call the callback with invalid values and an error */
 			args->callback(MAFW_SOURCE(args->source),
