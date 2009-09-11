@@ -178,7 +178,6 @@ void verify_results(struct expected_results *expected)
 
 static gboolean need_browse_results;
 static gboolean end_action_return_false;
-static gboolean with_wrong_didl;
 static gint browse_called;
 
 void browse_cb(MafwSource *source, guint browse_id, gint remaining,
@@ -187,7 +186,7 @@ void browse_cb(MafwSource *source, guint browse_id, gint remaining,
 {
 	/* Dummy browse result callback. */
 	browse_called++;
-	if (end_action_return_false || with_wrong_didl)
+	if (end_action_return_false)
 	{
 		fail_if(error == NULL);
 		fail_if(metadata != NULL);
@@ -223,7 +222,7 @@ static void mdata_result(MafwSource *self, const gchar *object_id,
 			const GError *error)
 {
 	mdata_called++;
-	if (end_action_return_false || with_wrong_didl)
+	if (end_action_return_false)
 	{
 		fail_if(error == NULL);
 		fail_if(metadata != NULL);
@@ -435,15 +434,6 @@ START_TEST(test_errors)
 	fail_if(browse_id == MAFW_SOURCE_INVALID_BROWSE_ID);
 	end_action_return_false = FALSE;
 
-	with_wrong_didl = TRUE;
-	browse_id = mafw_source_browse(source,
-				   "w::whatever", FALSE,
-				   NULL, NULL, MAFW_SOURCE_ALL_KEYS,
-				   0, 0,
-				   browse_cb, NULL);
-	fail_if(browse_id == MAFW_SOURCE_INVALID_BROWSE_ID);
-	with_wrong_didl = FALSE;
-
 	need_browse_results = FALSE;
 
 	return_null_action = TRUE;
@@ -463,16 +453,6 @@ START_TEST(test_errors)
 				 mdata_result,
 				 NULL);
 	end_action_return_false = FALSE;
-
-	with_wrong_didl = TRUE;
-	mafw_source_get_metadata(source,
-				 "w::whatever", 
-				 MAFW_SOURCE_ALL_KEYS,
-				 mdata_result,
-				 NULL);
-	with_wrong_didl = FALSE;
-
-	need_browse_results = FALSE;
 
 	mafw_upnp_source_plugin_deinitialize();
 	g_object_unref(source);
@@ -789,14 +769,7 @@ gboolean gupnp_service_proxy_end_action(GUPnPServiceProxy *proxy,
 	(gchar *)va_arg(list, gchar*);
 	(gint)va_arg(list, gint);
 	data = va_arg(list, gpointer*);
-	if (with_wrong_didl)
-	{
-		*data = g_strdup(FAKE_DIDL_ITEM);
-	}
-	else
-	{
-		*data = g_strdup(DIDL_ITEM);
-	}
+	*data = g_strdup(DIDL_ITEM);
 	
 	if ((gchar *)va_arg(list, gchar*))
 	{
