@@ -124,6 +124,7 @@ void didl_get_http_res_uri(GHashTable *metadata, GList *properties,
 	xmlNode* xml_node;
 	gchar *uri;
 	gchar *mimetype;
+	gboolean uri_added = FALSE;
 
 	/* Get a list of <res> property nodes and iterate thru them */
 	for (node = properties; node != NULL; node = node->next)
@@ -140,9 +141,24 @@ void didl_get_http_res_uri(GHashTable *metadata, GList *properties,
 			uri = gupnp_didl_lite_property_get_value(xml_node);
 			mafw_metadata_add_str(metadata, MAFW_METADATA_KEY_URI,
 				uri);
+			uri_added = TRUE;
 			g_free(uri);
 		}
 		g_free(mimetype);
+	}
+
+	/* if we haven't added any URI, it is better to add all the supported
+	resources */
+	if (!uri_added)
+	{
+		for (node = properties; node != NULL; node = node->next)
+		{
+			xml_node = (xmlNode*) node->data;
+			uri = gupnp_didl_lite_property_get_value(xml_node);
+			mafw_metadata_add_str(metadata, MAFW_METADATA_KEY_URI,
+				uri);
+			g_free(uri);
+		}
 	}
 }
 
