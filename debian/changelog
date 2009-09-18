@@ -1,3 +1,11 @@
+mafw-upnp-source (0.1.2009.39-1) unstable; urgency=low
+
+  * MAFW uPnP source, pre-release 0.2009.39-1
+  * Do not filter out all the URIs
+  * Fixing failing tests
+
+ -- Juha Kellokoski <veitikka6@gmail.com>  Fri, 18 Sep 2009 14:21:32 +0300
+
 mafw-upnp-source (0.1.2009.37-1) unstable; urgency=low
 
   * MAFW uPnP source, pre-release 0.2009.37-1
