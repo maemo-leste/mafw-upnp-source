@@ -91,12 +91,23 @@ int setsockopt(int fd, int level, int optname,
 # endif /* LINUX_VERSION_CODE */
 #endif /* __ARMEL__ */
 
+static gboolean gssdp_set_act_called , gssdp_set_act_val, prop_chd_emitted;
+
+static void ctrl_prop_chd(MafwExtension *ctrlsrc, gchar *name, GValue *nval,
+				gpointer udat)
+{
+	fail_if(strcmp(name, MAFW_PROPERTY_EXTENSION_ACTIVATE) != 0);
+	fail_if(G_VALUE_TYPE(nval) != G_TYPE_BOOLEAN);
+	prop_chd_emitted = TRUE;
+}
+
 START_TEST(test_plugin)
 {
 	MafwRegistry *reg = mafw_registry_get_instance();
 	gboolean retv;
 	GError *err = NULL;
 	GList *tlist;
+	MafwUpnpControlSource *ctrl_src;
 	
 	err = NULL;
 	retv = mafw_registry_load_plugin(reg,
@@ -107,10 +118,39 @@ START_TEST(test_plugin)
 	fail_unless(g_list_length(tlist) == 1);
 	g_list_free(tlist);
 	tlist = mafw_registry_get_sources(MAFW_REGISTRY(reg)); /* Do not free this list */
-	fail_unless(g_list_length(tlist) == 0);
+	fail_unless(g_list_length(tlist) == 1, "Src number: %d", g_list_length(tlist));
+	ctrl_src = MAFW_UPNP_CONTROL_SOURCE(tlist->data);
 	tlist = mafw_registry_get_renderers(MAFW_REGISTRY(reg)); /* Do not free this list */
 	fail_unless(g_list_length(tlist) == 0);
-	
+
+	fail_if(gssdp_set_act_called == TRUE);
+#ifndef HAVE_CONIC
+	g_signal_connect(G_OBJECT(ctrl_src), "property-changed", ctrl_prop_chd, NULL);
+	mafw_extension_set_property_boolean(MAFW_EXTENSION(ctrl_src),
+					MAFW_PROPERTY_EXTENSION_ACTIVATE, TRUE);
+	fail_if(gssdp_set_act_called == FALSE);
+	fail_if(gssdp_set_act_val == FALSE);
+	fail_if(prop_chd_emitted == FALSE);
+	gssdp_set_act_called = FALSE;
+	mafw_extension_set_property_boolean(MAFW_EXTENSION(ctrl_src),
+					MAFW_PROPERTY_EXTENSION_ACTIVATE, FALSE);
+	/* it should not disable the browsing immediately */
+	fail_if(gssdp_set_act_called == TRUE);
+	fail_if(prop_chd_emitted == FALSE);
+	mafw_extension_set_property_boolean(MAFW_EXTENSION(ctrl_src),
+					MAFW_PROPERTY_EXTENSION_ACTIVATE, TRUE);
+	fail_if(gssdp_set_act_called == TRUE);
+	fail_if(prop_chd_emitted == FALSE);
+	checkmore_spin_loop(4000);
+	fail_if(gssdp_set_act_called == TRUE);
+	mafw_extension_set_property_boolean(MAFW_EXTENSION(ctrl_src),
+					MAFW_PROPERTY_EXTENSION_ACTIVATE, FALSE);
+	fail_if(gssdp_set_act_called == TRUE);
+	fail_if(prop_chd_emitted == FALSE);
+	checkmore_spin_loop(4000);
+	fail_if(gssdp_set_act_called == FALSE);
+	fail_if(gssdp_set_act_val == TRUE);
+#endif
 	mafw_registry_unload_plugin(reg, "mafw-upnp-source", &err);
 	fail_unless(retv && !err);
 	
@@ -651,6 +691,7 @@ int main(void)
 	tc = tcase_create("Init");
 	suite_add_tcase(suite, tc);
 if (1)	tcase_add_test(tc, test_plugin);
+	tcase_set_timeout(tc, 12);
 	
 	/* Browse tests */
 	tc = tcase_create("Browse");
@@ -790,6 +831,13 @@ void gupnp_service_proxy_cancel_action (GUPnPServiceProxy *proxy,
 					GUPnPServiceProxyAction *action)
 {
 	return;
+}
+
+void gssdp_resource_browser_set_active(GSSDPResourceBrowser *resource_browser,
+                                                         gboolean active)
+{
+	gssdp_set_act_called = TRUE;
+	gssdp_set_act_val = active;
 }
 
 /* vi: set noexpandtab ts=8 sw=8 cino=t0,(0: */
