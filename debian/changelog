@@ -1,3 +1,16 @@
+mafw-upnp-source (0.1.2009.42-2) unstable; urgency=low
+
+  * Version increased.
+
+ -- Mika Tapojärvi <ext-mika.tapojarvi@nokia.com>  Tue, 20 Oct 2009 13:27:08 +0300
+
+mafw-upnp-source (0.1.2009.42-1) unstable; urgency=low
+
+  * Version and changelog updated for pre-release 0.2009.42-1
+  * Fixes: NB#139820 - Use-Time:mafw-dbus-wrapper wakes up after pausing the local audio playback.
+
+ -- Mika Tapojärvi <mika.tapojarvi@sse.fi>  Mon, 12 Oct 2009 17:34:11 +0300
+
 mafw-upnp-source (0.1.2009.40-1) unstable; urgency=low
 
   * Version and changelog updated for pre-release 0.2009.40-1
