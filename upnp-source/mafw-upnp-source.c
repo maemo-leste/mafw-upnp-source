@@ -416,11 +416,11 @@ static void mafw_upnp_source_plugin_conic_event(ConIcConnection* connection,
 				network_up = FALSE;
 				mafw_upnp_source_plugin_gupnp_down();
 				break;
-	
+
 			case CON_IC_STATUS_DISCONNECTING:
 				/* NOP */
 				break;
-		
+
 			default:
 				g_warning("Unknown network status: %d", status);
 				break;
@@ -1386,6 +1386,7 @@ static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
 	args = (BrowseArgs*) user_data;
 	g_assert(args != NULL);
 	g_assert(args->callback != NULL);
+	g_return_if_fail(args->remaining_count > 0);
 
 	/* Create a MAFW-style object ID for this item node. If an
 	   ID cannot be found, this node might be a <desc> node, which
@@ -1396,7 +1397,9 @@ static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
 	   which must not be exposed to the user and thus not counted
 	   in skip_count, either. */
 	if (objectid == NULL)
+	{
 		return;
+	}
 
 	/* Gather requested metadata information from DIDL-Lite */
 	metadata = mafw_upnp_source_compile_metadata(args->mdata_keys,
@@ -1404,15 +1407,7 @@ static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
 
 	/* Calculate remaining count and current item's index. */
 	current = args->current++;
-	if (args->item_count == 0) {
-		/* All items were requested. */
-		args->remaining_count = args->total_matches - args->current;
-	} else if (args->number_returned < args->item_count) {
-		args->remaining_count = args->number_returned - args->current;
-	} else {
-		args->remaining_count =	args->item_count - args->current;
-	}
-
+	args->remaining_count--;
 	/* Emit results */
 	args->callback(MAFW_SOURCE(args->source),
 		       args->browse_id,
@@ -1422,6 +1417,7 @@ static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
 		       metadata,
 		       args->user_data,
 		       NULL);
+	
 	/* Free the compiled metadata and MAFW-style object ID */
 	g_hash_table_unref(metadata);
 	g_free(objectid);
@@ -1466,7 +1462,16 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 		"\tTotalMatches: %d\n",
 		mafw_extension_get_uuid(MAFW_EXTENSION(args->source)),
 		args->number_returned, args->total_matches);
-
+	if (args->remaining_count == UINT_MAX)
+	{// Calculate the new remaining count
+		if (args->item_count == 0 ||
+			args->total_matches < args->item_count) {
+		/* All items were requested. */
+			args->remaining_count = args->total_matches;
+		} else {
+			args->remaining_count =	args->item_count;
+		}
+	}
 	if (result == FALSE || didl == NULL || args->total_matches == 0)
 	{
 		/* Action failed completely, no results. */
@@ -1510,7 +1515,6 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 			mafw_upnp_source_browse_result,
 			args,
 			&gupnp_error);
-
 		if (gupnp_error != NULL)
 		{
 			/* DIDL-Lite parsing failed */
@@ -1520,7 +1524,6 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 				    MAFW_SOURCE_ERROR,
 				    MAFW_SOURCE_ERROR_BROWSE_RESULT_FAILED,
 				    "DIDL-Lite parsing failed: %s", gupnp_error->message);
-
 			/* Call the callback function with invalid values and
 			   an error. */
 			if (args->remaining_count > 0)
@@ -1544,7 +1547,7 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 		 * 3. All items were requested, or
 		 * 4. the next skip_count won't go beyond the requested count
 		 */
-		else if (args->remaining_count <= 0)
+		else if (args->remaining_count == 0)
 		{
 			/* There are no more items left to browse. Stop. */
 		}
@@ -1803,7 +1806,7 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 	args->callback = browse_cb;
 	args->user_data = user_data;
 	args->browse_id = _plugin->next_browse_id;
-	args->remaining_count = INT_MAX;
+	args->remaining_count = UINT_MAX;
 
 	g_debug("Browse: %s\n"
 		"\tID: %u\n"

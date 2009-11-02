@@ -125,7 +125,8 @@ START_TEST(test_plugin)
 
 	fail_if(gssdp_set_act_called == TRUE);
 #ifndef HAVE_CONIC
-	g_signal_connect(G_OBJECT(ctrl_src), "property-changed", ctrl_prop_chd, NULL);
+	g_signal_connect(G_OBJECT(ctrl_src), "property-changed",
+				(GCallback)ctrl_prop_chd, NULL);
 	mafw_extension_set_property_boolean(MAFW_EXTENSION(ctrl_src),
 					MAFW_PROPERTY_EXTENSION_ACTIVATE, TRUE);
 	fail_if(gssdp_set_act_called == FALSE);
