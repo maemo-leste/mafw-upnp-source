@@ -1785,6 +1785,11 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 	args->itemid = itemid; /* Already strdupped */
 	args->search_criteria = upsc;
 	args->sort_criteria = upnp_sort_criteria;
+	
+	if (metadata_keys == NULL)
+	{
+		metadata_keys = MAFW_SOURCE_NO_KEYS;
+	}
 	/* If metadata_keys is empty (but not NULL), or it contains an asterisk,
 	   it means that ALL metadata keys are being requested */
 	if (metadata_keys != NULL && metadata_keys[0] != NULL &&
