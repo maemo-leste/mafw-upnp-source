@@ -310,19 +310,18 @@ gint util_compare_uint(guint a, guint b)
  *
  * Returns: A MAFW object ID. Must be freed after use.
  */
-gchar* util_create_objectid(MafwUPnPSource* source, xmlNode* didl_node)
+gchar* util_create_objectid(MafwUPnPSource* source, GUPnPDIDLLiteObject* didlobject)
 {
 	const gchar* uuid;
-	gchar* itemid;
+	const gchar* itemid;
 	gchar* objectid = NULL;
 
 	/* Construct an object ID from UDN & item ID */
 	uuid = mafw_extension_get_uuid(MAFW_EXTENSION(source));
-	itemid = gupnp_didl_lite_object_get_id(didl_node);
+	itemid = gupnp_didl_lite_object_get_id(didlobject);
 	if (itemid != NULL)
 	{
 		objectid = g_strdup_printf("%s::%s", uuid, itemid);
-		g_free(itemid);
 	}
 
 	return objectid;

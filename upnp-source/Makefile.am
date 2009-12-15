@@ -9,10 +9,6 @@ mafwext_LTLIBRARIES		= mafw-upnp-source.la
 
 mafw_upnp_source_la_CPPFLAGS	= $(DEPS_CFLAGS) $(_CFLAGS)
 mafw_upnp_source_la_LIBADD	= $(DEPS_LIBS)
-if HAVE_CONIC
-mafw_upnp_source_la_CPPFLAGS	+= -DHAVE_CONIC $(LIBCONIC_CFLAGS)
-mafw_upnp_source_la_LIBADD	+= $(LIBCONIC_LIBS) 
-endif
 mafw_upnp_source_la_LDFLAGS 	= -module -avoid-version $(_LDFLAGS)
 
 noinst_HEADERS			= mafw-upnp-source.h \

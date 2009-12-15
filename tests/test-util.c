@@ -69,29 +69,6 @@ START_TEST(test_util_compare_uint)
 }
 END_TEST
 
-START_TEST(test_util_create_objectid)
-{
-	MafwUPnPSource* source;
-	xmlDocPtr doc;
-	gchar* oid;
-	const gchar* item =
-		"<item id=\"18132\" refID=\"18073\" parentID=\"18131\"></item>";
-
-	doc = xmlReadMemory(item, strlen(item), "none.xml", NULL, 0);
-	g_assert(doc != NULL);
-
-	source = MAFW_UPNP_SOURCE(mafw_upnp_source_new("name", "uuid"));
-	g_assert(source != NULL);
-
-	oid = util_create_objectid(source, xmlDocGetRootElement(doc));
-	fail_unless(strcmp(oid, "uuid::18132") == 0, "Wrong object ID");
-	g_free(oid);
-
-	xmlFreeDoc(doc);
-	g_object_unref(source);
-}
-END_TEST
-
 int main(void)
 {
 	Suite *suite;
@@ -108,7 +85,6 @@ int main(void)
 	tcase_add_test(tc, test_util_udn_to_uuid);
 	tcase_add_test(tc, test_util_uuid_to_udn);
 	tcase_add_test(tc, test_util_compare_uint);
-	tcase_add_test(tc, test_util_create_objectid);
 
 	sr = srunner_create(suite);
 	srunner_run_all(sr, CK_NORMAL);

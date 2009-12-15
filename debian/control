@@ -5,9 +5,7 @@ Maintainer: Juha Kellokoski <veitikka6@gmail.com>
 Build-Depends: debhelper (>= 4.0.0),
 	       libglib2.0-dev, uuid-dev,
 	       libgupnp-av-1.0-dev,
-	       libconic0-dev, libdbus-1-dev,
-	       libmafw0-dev, checkmore, dbus,
-	       libdbus-glib-1-dev
+	       libmafw0-dev, checkmore
 Standards-Version: 3.7.2
 
 Package: mafw-upnp-source

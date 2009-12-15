@@ -43,40 +43,42 @@
  *
  * Return: supported resource-list. Should be freed with g_list_free;
  */
-GList *didl_get_supported_resources(xmlNode *didl_node)
+GList *didl_get_supported_resources(GUPnPDIDLLiteObject *didlobject)
 {
-	GList *properties, *node;
-	xmlNode *xml_node;
+	GList *resources, *node, *prev;
 
-	/* Get 'res' the properties, and parses it */
-	properties = gupnp_didl_lite_object_get_property(didl_node, DIDL_RES);
-	/* remove unsupported resources */
-	node = properties;
+	resources = gupnp_didl_lite_object_get_resources(didlobject);
+
+	node = resources;
 	while (node)
 	{
-		gchar *protocol = NULL;
-		xml_node = (xmlNode*) node->data;
-		if (xml_node == NULL)
+		const gchar *protocol = NULL;
+
+		if (node->data == NULL)
 		{
-			node = properties = g_list_delete_link(properties, node);
+			prev = node;
+			node = node->next;
+			resources = g_list_delete_link(resources, prev);
 			continue;
 		}
 
-		protocol = didl_res_get_protocol_info(xml_node, 0);
+		protocol = gupnp_protocol_info_get_protocol(
+				gupnp_didl_lite_resource_get_protocol_info(
+						(GUPnPDIDLLiteResource*)node->data));
 		if (protocol != NULL &&
 		    strcmp(protocol, DIDL_RES_PROTOCOL_INFO_HTTP) != 0)
 		{
-			node = properties = g_list_delete_link(properties, node);
-			g_free(protocol);
+			g_object_unref(node->data);
+			prev = node;
+			node = node->next;
+			resources = g_list_delete_link(resources, prev);
 			continue;
 		}
-		g_free(protocol);
 		node = node->next;
 	}
 	
-	return properties;
+	return resources;
 }
-
 /**
  * didl_check_filetype:
  * @didl_object: An @xmlNode containing a DIDL-Lite <item> or <container>
@@ -84,12 +86,12 @@ GList *didl_get_supported_resources(xmlNode *didl_node)
  *
  * Return: Returns TRUE, if item is audio
  */
-gboolean didl_check_filetype(xmlNode *didl_node, gboolean *is_supported)
+gboolean didl_check_filetype(GUPnPDIDLLiteObject *didlobject, gboolean *is_supported)
 {
-	gchar *class;
+	const gchar *class;
 	gboolean is_audio = TRUE;
 
-	class = gupnp_didl_lite_object_get_upnp_class(didl_node);
+	class = gupnp_didl_lite_object_get_upnp_class(didlobject);
 	if (class && strstr(class, DIDL_CLASS_AUDIO) != NULL)
 	{
 		is_audio = TRUE;
@@ -102,7 +104,6 @@ gboolean didl_check_filetype(xmlNode *didl_node, gboolean *is_supported)
 	}
 	else
 		*is_supported = FALSE;
-	g_free(class);
 	
 	return is_audio;
 }
@@ -117,121 +118,46 @@ gboolean didl_check_filetype(xmlNode *didl_node, gboolean *is_supported)
  * add only one type of items, based on the is_audio flag.
  *
  **/
-void didl_get_http_res_uri(GHashTable *metadata, GList *properties,
+void didl_get_http_res_uri(GHashTable *metadata, GList *resources,
 				gboolean is_audio)
 {
 	GList* node;
-	xmlNode* xml_node;
-	gchar *uri;
-	gchar *mimetype;
+	GUPnPDIDLLiteResource* res;
+	const gchar *uri;
+	const gchar *mimetype;
 	gboolean uri_added = FALSE;
 
-	/* Get a list of <res> property nodes and iterate thru them */
-	for (node = properties; node != NULL; node = node->next)
+	for (node = resources; node != NULL; node = node->next)
 	{
-		xml_node = (xmlNode*) node->data;
+		res = (GUPnPDIDLLiteResource*) node->data;
 
 		/* Get the first resource with http-get protocol */
-		mimetype = didl_res_get_protocol_info(xml_node, 2);
+		mimetype = gupnp_protocol_info_get_mime_type(
+				gupnp_didl_lite_resource_get_protocol_info(res));
 		if (mimetype &&
 			((is_audio && g_str_has_prefix(mimetype, "audio")) || 
 				(!is_audio && g_str_has_prefix(mimetype, "video")))
 			)
 		{
-			uri = gupnp_didl_lite_property_get_value(xml_node);
+			uri = gupnp_didl_lite_resource_get_uri(res);
 			mafw_metadata_add_str(metadata, MAFW_METADATA_KEY_URI,
 				uri);
 			uri_added = TRUE;
-			g_free(uri);
 		}
-		g_free(mimetype);
 	}
 
 	/* if we haven't added any URI, it is better to add all the supported
 	resources */
 	if (!uri_added)
 	{
-		for (node = properties; node != NULL; node = node->next)
+		for (node = resources; node != NULL; node = node->next)
 		{
-			xml_node = (xmlNode*) node->data;
-			uri = gupnp_didl_lite_property_get_value(xml_node);
+			res = (GUPnPDIDLLiteResource*) node->data;
+			uri = gupnp_didl_lite_resource_get_uri(res);
 			mafw_metadata_add_str(metadata, MAFW_METADATA_KEY_URI,
 				uri);
-			g_free(uri);
 		}
 	}
-}
-
-/**
- * didl_res_get_protocol_info:
- * @res_node: An @xmlNode that contains a <res> element
- * @field:    The number of the field to extract (0=protocol, 1=network,
- *                                                2=mimetype, 3=additional info)
- *
- * Extracts the requested protocol info field from the given resource element.
- *
- * Returns: Protocol info string (must be freed) or %NULL.
- **/
-gchar* didl_res_get_protocol_info(xmlNode* res_node, gint field)
-{
-	gchar* pinfo;
-	gchar* value;
-	gchar** array;
-
-	g_return_val_if_fail(res_node != NULL, NULL);
-	g_return_val_if_fail(field >= 0 || field < 4, NULL);
-
-	/* Get protocolInfo attribute from the <res> element */
-	pinfo = gupnp_didl_lite_property_get_attribute(res_node,
-						       DIDL_RES_PROTOCOL_INFO);
-	if (pinfo == NULL)
-		return NULL;
-
-	/* Split the protocol info field into 4 fields:
-	   0:protocol, 1:network, 2:mime-type and 3:additional info. */
-	array = g_strsplit(pinfo, DIDL_RES_PROTOCOL_INFO_DELIMITER, 4);
-	g_free(pinfo);
-	if (g_strv_length(array) < 4)
-	{
-		value = NULL;
-		g_strfreev(array);
-	}
-	else
-	{
-		value = g_strdup(array[field]);
-		g_strfreev(array);
-	}
-
-	return value;
-}
-
-/**
- * didl_get_duration:
- * @first_res: The first @xmlNode from the resource-list
- *
- * Extracts the duration attribute from the object.
- *
- * Returns: Duration in seconds (-1 if not found).
- **/
-gint didl_get_duration(xmlNode *first_res)
-{
-	gchar* value;
-	gint duration = 0;
-
-	if (!first_res)
-		return -1;
-	/* Get duration as H+:MM:SS.F+ */
-	value = gupnp_didl_lite_property_get_attribute(first_res,
-						       DIDL_RES_DURATION);
-
-	/* Convert H+:MM:SS.F+ to seconds */
-	if (value != NULL)
-		duration = didl_h_mm_ss_to_int(value);
-	else
-		duration = -1;
-	g_free(value);
-
-	return duration;
 }
 
 /**
@@ -249,24 +175,24 @@ gint didl_get_duration(xmlNode *first_res)
  *
  **/
 void didl_get_mimetype(GHashTable *metadata, gboolean is_container,
-			gboolean is_audio, GList* properties)
+			gboolean is_audio, GList* resources)
 {
-	gchar *value = NULL;
+	const gchar *value;
 
 	if (is_container)
 			mafw_metadata_add_str(metadata, MAFW_METADATA_KEY_MIME,
 				MAFW_METADATA_VALUE_MIME_CONTAINER);
 	else
 	{
-		if (!properties)
+		if (!resources)
 			return;
-		if (g_list_length(properties) == 1)
+		if (g_list_length(resources) == 1)
 		{
-			value = didl_res_get_protocol_info(
-					(xmlNode*)properties->data, 2);
+			value = gupnp_protocol_info_get_mime_type(
+					gupnp_didl_lite_resource_get_protocol_info(
+					(GUPnPDIDLLiteResource*)resources->data));
 			mafw_metadata_add_str(metadata,
 				MAFW_METADATA_KEY_MIME, value);
-			g_free(value);
 		}
 		else
 		{/* Multiple resources */
@@ -287,132 +213,6 @@ void didl_get_mimetype(GHashTable *metadata, gboolean is_container,
 }
 
 /**
- * didl_get_childcount:
- * @didl_object: An @xmlNode that contains a DIDL-Lite <container>
- *
- * Get the childcount attribute (i.e. number of child nodes under the given
- * container) from the given DIDL-Lite container element.
- *
- * Returns: Number of children (-1 if not a container).
- **/
-gint didl_get_childcount(xmlNode* didl_object)
-{
-	gchar* value;
-	gint count;
-
-	g_return_val_if_fail(didl_object != NULL, 0);
-
-	/* Map mafw childcount key to container's childCount attribute */
-	value = gupnp_didl_lite_property_get_attribute(didl_object,
-						       DIDL_CHILDCOUNT);
-	if (value != NULL)
-		count = atoi(value);
-	else
-		count = -1;
-	g_free(value);
-	
-	return count;
-}
-
-/**
- * didl_get_album_art_uri:
- * @didl_object: An @xmlNode that contains a DIDL-Lite <item> or <container>
- *
- * Extracts the album art URI for the object.
- *
- * Returns: A string containing the URI (must be freed) or %NULL.
- */
-gchar* didl_get_album_art_uri(xmlNode* didl_object)
-{
-	GList* properties;
-	GList* node;
-	xmlNode* xml_node;
-	gchar* uri;
-
-	g_return_val_if_fail(didl_object != NULL, NULL);
-
-	/* Get a list of <albumArtURI> property nodes and iterate thru them */
-	properties = gupnp_didl_lite_object_get_property(didl_object,
-							 DIDL_ALBUM_ART_URI);
-	for (node = properties; node != NULL; node = node->next)
-	{
-		xml_node = (xmlNode*) node->data;
-		if (xml_node == NULL)
-			continue;
-
-		/* Get the first non-null albumArtURI */
-		uri = gupnp_didl_lite_property_get_value(xml_node);
-		if (uri != NULL)
-		{
-			g_list_free(properties);
-			return uri;
-		}
-	}
-
-	g_list_free(properties);
-	return NULL;
-}
-
-/**
- * didl_get_seekability:
- * @res_node: An @xmlNode of the first resource
- *
- * Extracts the seekability associated with the given DIDL-Lite
- * object.
- *
- * Returns: -1 for container objects. For item objects, the
- * seekability is extracted and returns 1 if item is seekable, 0 if it
- * is not and -1 in case it could not be extracted.
- **/
-gint8 didl_get_seekability(xmlNode* res_node)
-{
-	gint8 seekability = -1;
-	gchar *additional_info = NULL;
-
-	g_return_val_if_fail(res_node != NULL, -1);
-
-
-	additional_info = didl_res_get_protocol_info(res_node,
-						     3);
-	if (additional_info != NULL &&
-	    strcmp(additional_info, "*") != 0) {
-		gchar *dlna_org_op = NULL;
-
-		dlna_org_op = strstr(additional_info,
-				     "DLNA.ORG_OP=");
-
-		/* In "DLNA.ORG_OP=ab" we need the
-		 character b. If it is 1, it is
-		 seekable, if 0, it is not */
-		if (dlna_org_op != NULL &&
-		    strlen(dlna_org_op) >= 13) {
-			if (dlna_org_op[13] == '1') {
-				seekability = 1;
-				g_debug("seekability positive");
-			} else if (dlna_org_op[13] == '0') {
-				seekability = 0;
-				g_debug("seekability negative");
-			}
-		} else if (strstr(additional_info, "DLNA.")) {
-			/* If server does not provide
-			the seekability info, but it
-			is a DLNA content, this should
-			be considered as
-			non-seekable */
-			seekability = 0;
-			g_debug("seekability negative, because "
-				"DLNA info present, but "
-				"nothing about seekability");
-		}
-	}
-
-	g_free(additional_info);
-
-	g_debug("final seekability %d", seekability);
-	return seekability;
-}
-
-/**
  * didl_fallback:
  * @didl_object: A DIDL-Lite object to search the key from
  * @id:         The metadata id to search for
@@ -423,29 +223,53 @@ gint8 didl_get_seekability(xmlNode* res_node)
  *
  * Returns: A string containing the requested value (must be freed) or %NULL.
  */
-gchar* didl_fallback(xmlNode* didl_object, xmlNode* res_node, gint id, gint* type)
+gchar* didl_fallback(GUPnPDIDLLiteObject* didl_object,
+			GUPnPDIDLLiteResource* first_res, gint id, gint* type)
 {
 	GList* list;
-	gchar* val;
+	gchar* val = NULL;
 	const gchar* mapped_key;
 
 	mapped_key = util_mafwkey_to_upnp_result(id, type);
 	if (!mapped_key)
 		return NULL;
 
-	list = gupnp_didl_lite_object_get_property(didl_object, mapped_key);
+	list = gupnp_didl_lite_object_get_properties(didl_object, mapped_key);
 	if (list != NULL)
 	{
-		val = gupnp_didl_lite_property_get_value((xmlNode*) list->data);
+		xmlChar *content = xmlNodeGetContent((xmlNode*) list->data);
+
+		val = g_strdup((gchar*)content);
+		xmlFree(content);
+
 		g_list_free(list);
 	}
 	else
 	{
-		if (res_node != NULL)
-			val = gupnp_didl_lite_property_get_attribute(
-				res_node, mapped_key);
-		else
-			val = NULL;
+		if (first_res != NULL)
+		{
+			xmlNode *node = gupnp_didl_lite_resource_get_xml_node(
+						first_res);
+			xmlAttr *attr;
+			
+			
+			for (attr = node->properties; attr; attr = attr->next)
+			{
+				if (!attr->name)
+					continue;
+				if (!strcmp(mapped_key, (const char*)attr->name))
+					break;
+			}
+			if (attr)
+			{
+				xmlChar *cont;
+
+				cont = xmlNodeGetContent(attr->children);
+				val = g_strdup((gchar*)cont);
+				xmlFree(cont);
+			}
+
+		}
 	}
 	
 	return val;
@@ -561,108 +385,4 @@ const gchar* didl_mafwkey_to_upnp_filter(const gchar* mafwkey)
 		return DIDL_ALBUM;
 	else
 		return mafwkey;
-}
-
-/*----------------------------------------------------------------------------
-  Time conversion
-  ----------------------------------------------------------------------------*/
-
-/**
- * didl_h_mm_ss_to_int:
- * @time: A CurrentTrackDuration string (H+:MM:SS.F+)
- *
- * Converts a CurrentTrackDuration data type into an integer (seconds).
- * Doesn't care about fractions (.F+ or .F0/F1).
- *
- * Returns: Time as an integer (0 if an error occurs)
- */
-gint didl_h_mm_ss_to_int(gchar* time)
-{
-	int len = 0;
-	int i = 0;
-	int head = 0;
-	int tail = 0;
-	int result = 0;
-	gchar* tmp = NULL;
-	
-	/* The passed parameter may be in format MM:SS or H+:MM:SS */
-	gboolean has_hours = FALSE;
-
-	if (time == NULL)
-		return 0;
-
-	len = strlen(time);
-	tmp = g_new0(gchar, sizeof(gchar) * len);
-
-	/* Find the first colon (it can be anywhere) and also count the
-	 * amount of colons to know if there are hours or not */
-	for (i = 0; i < len; i++)
-	{
-		if (time[i] == ':')
-		{
-			if (tail != 0)
-				has_hours = TRUE;
-			else
-				tail = i;
-		}
-	}
-
-	/* Bail out if tail goes too far or head is bigger than tail */
-	if (tail > len || head > tail)
-	{
-		g_free(tmp);
-		return 0;
-	}
-
-	/* Extract hours */
-	if (has_hours == TRUE)
-	{
-		memcpy(tmp, time + head, tail - head);
-		tmp[tail - head + 1] = '\0';
-
-		result += 3600 * atoi(tmp);
-
-		/* The next colon should be exactly 2 chars right */
-		head = tail + 1;
-		tail = head + 2;
-	}
-	else
-	{
-		/* The format is now exactly MM:SS */
-		head = 0;
-		tail = 2;
-	}
-
-	/* Bail out if tail goes too far or head is bigger than tail */
-	if (tail > len || head > tail)
-	{
-		g_free(tmp);
-		return 0;
-	}
-
-	/* Extract minutes */
-	memcpy(tmp, time + head, tail - head);
-	tmp[2] = '\0';
-
-	result += 60 * atoi(tmp);
-
-	/* The next colon should again be exactly 2 chars right */
-	head = tail + 1;
-	tail = head + 2;
-
-	/* Bail out if tail goes too far or head is bigger than tail */
-	if (tail > len || head > tail)
-	{
-		g_free(tmp);
-		return 0;
-	}
-
-	/* Extract seconds */
-	memcpy(tmp, time + head, tail - head);
-	tmp[2] = '\0';
-	result += atoi(tmp);
-
-	g_free(tmp);
-
-	return result;
 }

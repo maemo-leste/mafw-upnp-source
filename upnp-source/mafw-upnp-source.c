@@ -29,11 +29,6 @@
 #include <string.h>
 #include <gmodule.h>
 
-#ifdef HAVE_CONIC /* MAEMO */
-#include <conic.h>
-#include <dbus/dbus.h>
-#include <dbus/dbus-glib-lowlevel.h>
-#endif /* MAEMO */
 #include <libmafw/mafw.h>
 #include <libgupnp/gupnp.h>
 #include <libgupnp-av/gupnp-av.h>
@@ -47,7 +42,6 @@
 
 static void mafw_upnp_source_plugin_gupnp_down(void);
 static void mafw_upnp_source_plugin_gupnp_up(void);
-static gboolean network_up;
 
 G_DEFINE_TYPE(MafwUpnpControlSource, mafw_upnp_control_source, MAFW_TYPE_SOURCE);
 
@@ -142,8 +136,7 @@ static void mafw_upnp_control_source_set_property(MafwExtension *self,
 			}
 			else
 			{
-				if (network_up)
-					mafw_upnp_source_plugin_gupnp_up();
+				mafw_upnp_source_plugin_gupnp_up();
 			}
 		}
 		else
@@ -262,7 +255,7 @@ static void mafw_upnp_source_get_metadata(MafwSource *source,
 
 /* Common utilities */
 static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
-						     xmlNode* didl_node,
+						     GUPnPDIDLLiteObject* didlobject,
 						     const gchar* didl);
 
 /* Search criteria parsing */
@@ -307,20 +300,35 @@ static void mafw_upnp_source_deinitialize(GError **error)
 
 typedef struct _MafwUPnPSourcePlugin {
 
-#ifdef HAVE_CONIC /* MAEMO */
-	ConIcConnection* conic;
-	DBusConnection* dbus_system;
-#endif /* MAEMO */
-
+	GUPnPContextManager *contextmanager;
 	MafwRegistry* registry;
-	GUPnPContext* context;
-	GUPnPControlPoint* cp;
 	guint next_browse_id;
 } MafwUPnPSourcePlugin;
 
 /** THE mafw plugin */
 static MafwUPnPSourcePlugin* _plugin = NULL;
 static MafwSource *control_src;
+
+static void
+_on_context_available (GUPnPContextManager *context_manager,
+                      GUPnPContext        *context,
+                      gpointer            *user_data)
+{
+	GUPnPControlPoint* cp = gupnp_control_point_new(context, "ssdp:all");
+	
+	gupnp_context_manager_manage_control_point(context_manager, cp);
+	g_object_unref(cp);
+
+	g_signal_connect(cp, "device-proxy-available",
+			 G_CALLBACK(mafw_upnp_source_device_proxy_available),
+			 _plugin);
+	g_signal_connect(cp, "device-proxy-unavailable",
+			 G_CALLBACK(mafw_upnp_source_device_proxy_unavailable),
+			 _plugin);
+	gssdp_resource_browser_set_active(
+				GSSDP_RESOURCE_BROWSER(cp), TRUE);
+}
+
 /**
  * mafw_upnp_source_plugin_gupnp_up:
  *
@@ -328,35 +336,16 @@ static MafwSource *control_src;
  */
 static void mafw_upnp_source_plugin_gupnp_up(void)
 {
-	GError* error = NULL;
+	_plugin->contextmanager = gupnp_context_manager_new(NULL, 0);
 
-	if (_plugin->context != NULL)
-		return;
-
-	_plugin->context = gupnp_context_new(NULL, NULL, 0, &error);
-	if (error != NULL)
+	if (_plugin->contextmanager == NULL)
 	{
-		g_warning("Unable to create GUPnP context: %s. UPnP servers "
-			  "will not be available.", error->message);
-		g_error_free(error);
+		g_warning("Unable to create GUPnP contextmanager");
 		return;
 	}
 
-	/* Create a control point object with MediaServer search target */
-	_plugin->cp = gupnp_control_point_new(_plugin->context, "ssdp:all");
-	g_assert(_plugin->cp != NULL);
-
-	/* Listen to device alive/byebye messages */
-	g_signal_connect(_plugin->cp, "device-proxy-available",
-			 G_CALLBACK(mafw_upnp_source_device_proxy_available),
-			 _plugin);
-	g_signal_connect(_plugin->cp, "device-proxy-unavailable",
-			 G_CALLBACK(mafw_upnp_source_device_proxy_unavailable),
-			 _plugin);
-
-	/* Switch the control point on */
-        gssdp_resource_browser_set_active(
-				GSSDP_RESOURCE_BROWSER(_plugin->cp), TRUE);
+	g_signal_connect(_plugin->contextmanager, "context-available",
+			 G_CALLBACK(_on_context_available), NULL);
 }
 
 /**
@@ -366,74 +355,12 @@ static void mafw_upnp_source_plugin_gupnp_up(void)
  */
 static void mafw_upnp_source_plugin_gupnp_down(void)
 {
-	if (_plugin->cp != NULL)
+	if (_plugin->contextmanager != NULL)
 	{
-	        gssdp_resource_browser_set_active(
-				GSSDP_RESOURCE_BROWSER(_plugin->cp), FALSE);
-		g_object_unref(_plugin->cp);
-		_plugin->cp = NULL;
+		g_object_unref(_plugin->contextmanager);
+		_plugin->contextmanager = NULL;
 	}
-
-	/* Destroy context, because it is bound to a nonexisting network
-	   interface if we came here from conic message handler. */
-	if (_plugin->context != NULL)
-		g_object_unref(_plugin->context);
-	_plugin->context = NULL;
 }
-
-#ifdef HAVE_CONIC /* MAEMO */
-
-static void mafw_upnp_source_plugin_conic_event(ConIcConnection* connection,
-						 ConIcConnectionEvent* event,
-						 gpointer user_data)
-{
-	ConIcConnectionStatus status;
-	const gchar* bearer;
-
-	status = con_ic_connection_event_get_status(event);
-
-	bearer = con_ic_event_get_bearer_type(CON_IC_EVENT(event));
-	if (bearer != NULL &&
-		    (strcmp(bearer, CON_IC_BEARER_WLAN_INFRA) == 0 ||
-		     strcmp(bearer, CON_IC_BEARER_WLAN_ADHOC) == 0))
-	{
-		switch (status)
-		{
-			case CON_IC_STATUS_CONNECTED:
-				/* Create GUPnP stuff only for WLAN connections. This prevents
-		   		UPnP traffic in a GSM network. */
-				network_up = TRUE;
-				g_debug("WLAN connection is up.");
-				if (MAFW_UPNP_CONTROL_SOURCE(control_src)->activate)
-					mafw_upnp_source_plugin_gupnp_up();
-				break;
-
-			case CON_IC_STATUS_DISCONNECTED:
-				/* Since only one connection can be up at a time (thru conic)
-				   it shouldn't be necessary to check the bearer type here.
-				   If a GSM network was up, this does nothing. Otherwise all
-				   GUPnP stuff is destroyed as it should be. */
-				network_up = FALSE;
-				mafw_upnp_source_plugin_gupnp_down();
-				break;
-
-			case CON_IC_STATUS_DISCONNECTING:
-				/* NOP */
-				break;
-
-			default:
-				g_warning("Unknown network status: %d", status);
-				break;
-		}
-	}
-	else
-	{
-		g_debug("Non-WLAN connection has changed. Ignoring event.");
-	}
-
-}
-
-#endif /* MAEMO */
 
 void mafw_upnp_source_plugin_initialize(MafwRegistry* registry)
 {
@@ -456,34 +383,6 @@ void mafw_upnp_source_plugin_initialize(MafwRegistry* registry)
 	mafw_registry_add_extension(registry, MAFW_EXTENSION(control_src));
 	/* Reset next browse id */
 	_plugin->next_browse_id = 0;
-
-#ifdef HAVE_CONIC /* MAEMO */
-	
-	/* Initialize the system bus so libconic can receive ICD messages. */
-	_plugin->dbus_system = dbus_bus_get(DBUS_BUS_SYSTEM, NULL);
-	dbus_connection_setup_with_g_main(_plugin->dbus_system, NULL);
-
-	/* Create an Internet Connectivity object and start listening
-	   to connection events */
-	_plugin->conic = con_ic_connection_new();
-	g_assert(_plugin->conic != NULL);
-
-	/* Set conic to send events from all events and start receiving them */
-	g_signal_connect(_plugin->conic, "connection-event",
-			 G_CALLBACK(mafw_upnp_source_plugin_conic_event),
-			 NULL);
-	g_object_set(_plugin->conic, "automatic-connection-events", TRUE, NULL);
-
-	g_debug("Waiting for ConIC to tell, whether network is up.");
-	
-	
-
-#else
-	/* We're operating on a non-armel (non-maemo) environment. Assume
-	   network is up and running. */
-	network_up = TRUE;
-
-#endif /* MAEMO */
 }
 
 void mafw_upnp_source_plugin_deinitialize(void)
@@ -491,14 +390,6 @@ void mafw_upnp_source_plugin_deinitialize(void)
 	g_assert(_plugin != NULL);
 
 	mafw_upnp_source_plugin_gupnp_down();
-
-#ifdef HAVE_CONIC /* MAEMO */
-	if (_plugin->conic != NULL)
-		g_object_unref(_plugin->conic);
-	_plugin->conic = NULL;
-
-	dbus_connection_unref(_plugin->dbus_system);
-#endif /* MAEMO */
 
 	mafw_registry_remove_extension(_plugin->registry,
 					   MAFW_EXTENSION(control_src));
@@ -797,6 +688,10 @@ static void mafw_upnp_source_device_proxy_unavailable(
 /*----------------------------------------------------------------------------
   Common utilities
   ----------------------------------------------------------------------------*/
+static void _call_unref(GObject *obj, gpointer udat)
+{
+	g_object_unref(obj);
+}
 
 /**
  * mafw_upnp_source_compile_metadata:
@@ -811,29 +706,40 @@ static void mafw_upnp_source_device_proxy_unavailable(
  * Returns: A #GHashTable containing key-value pairs. Must be freed after use.
  */
 static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
-						     xmlNode *didl_node,
+						     GUPnPDIDLLiteObject* didlobject,
 						     const gchar* didl)
 {
 	GHashTable* metadata;
-	const gchar* name;
+	const gchar* constval;
 	gchar* value;
 	gint number;
-	GList *properties;
-	gboolean is_audio = FALSE, is_container = FALSE, is_supported = TRUE;
+	GList *resources;
 	gint type = G_TYPE_INVALID;
-	gint id = 0;
-	xmlNode *first_xmlnode = NULL;
+	gboolean is_audio = FALSE, is_supported = TRUE, is_container;
+	GUPnPDIDLLiteResource* first_res = NULL;
 
 	/* Requested metadata keys */
 	metadata = mafw_metadata_new();
 
-	is_container = gupnp_didl_lite_object_is_container(didl_node);
+	if ((keys & MUPnPSrc_MKey_Title) ==  MUPnPSrc_MKey_Title)
+	{
+		constval = gupnp_didl_lite_object_get_title(didlobject);
+		if (constval)
+		{
+			mafw_metadata_add_str(metadata, MAFW_METADATA_KEY_TITLE, constval);
+		}
+	}
+	keys &= ~MUPnPSrc_MKey_Title;
 
+	if (GUPNP_IS_DIDL_LITE_CONTAINER(didlobject))
+		is_container = TRUE;
+	else
+		is_container = FALSE;
 	if (is_container && (keys & MUPnPSrc_MKey_Childcount) == MUPnPSrc_MKey_Childcount)
 	{
-		number = didl_get_childcount(didl_node);
-		if (number >= 0)
-			mafw_metadata_add_int(metadata,
+		number = (gint)gupnp_didl_lite_container_get_child_count(
+					GUPNP_DIDL_LITE_CONTAINER(didlobject));
+		mafw_metadata_add_int(metadata,
 				MAFW_METADATA_KEY_CHILDCOUNT_1, number);
 	}
 	keys &= ~MUPnPSrc_MKey_Childcount;
@@ -843,17 +749,16 @@ static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 				(keys & MUPnPSrc_MKey_Thumbnail_URI) ==
 					MUPnPSrc_MKey_Thumbnail_URI))
 	{
-		is_audio = didl_check_filetype(didl_node, &is_supported);
+		is_audio = didl_check_filetype(didlobject, &is_supported);
 		
 	}
 	
 	if (is_audio && (keys & MUPnPSrc_MKey_Thumbnail_URI) == MUPnPSrc_MKey_Thumbnail_URI)
 	{
-		value = didl_get_album_art_uri(didl_node);
-		if (value != NULL && strlen(value) > 0)
+		const gchar *albumarturi = gupnp_didl_lite_object_get_album_art(didlobject);
+		if (albumarturi != NULL && albumarturi[0] != '\0')
 			mafw_metadata_add_str(metadata,
-					MAFW_METADATA_KEY_THUMBNAIL_URI, value);
-		g_free(value);
+					MAFW_METADATA_KEY_THUMBNAIL_URI, albumarturi);
 	}
 	keys &= ~MUPnPSrc_MKey_Thumbnail_URI;
 
@@ -865,23 +770,21 @@ static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 	}
 	keys &= ~MUPnPSrc_MKey_DIDL;
 
-	properties = didl_get_supported_resources(didl_node);
-	
-
-	if (properties)
-		first_xmlnode = properties->data;
+	resources = didl_get_supported_resources(didlobject);
+	if (resources)
+		first_res = resources->data;
 	
 	if ((is_container || (!is_container && is_supported)) &&
 			((keys & MUPnPSrc_MKey_MimeType)
 				== MUPnPSrc_MKey_MimeType))
 	{
-		didl_get_mimetype(metadata, is_container, is_audio, properties);
+		didl_get_mimetype(metadata, is_container, is_audio, resources);
 	}
 	keys &= ~MUPnPSrc_MKey_MimeType;
 	
-	if ((keys & MUPnPSrc_MKey_Duration) == MUPnPSrc_MKey_Duration)
+	if (first_res && (keys & MUPnPSrc_MKey_Duration) == MUPnPSrc_MKey_Duration)
 	{
-		number = didl_get_duration(first_xmlnode);
+		number = (gint)gupnp_didl_lite_resource_get_duration(first_res);
 		if (number >= 0)
 			mafw_metadata_add_int(metadata,
 						MAFW_METADATA_KEY_DURATION,
@@ -889,22 +792,95 @@ static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 	}
 	keys &= ~MUPnPSrc_MKey_Duration;
 	
+	if (first_res && !resources->next &&
+		(keys & MUPnPSrc_MKey_FileSize) == MUPnPSrc_MKey_FileSize)
+	{
+		number = (gint)gupnp_didl_lite_resource_get_size(first_res);
+		if (number >= 0)
+			mafw_metadata_add_int(metadata,
+						MAFW_METADATA_KEY_FILESIZE,
+						number);
+	}
+	keys &= ~MUPnPSrc_MKey_FileSize;
+
+	if (first_res && !resources->next &&
+		(keys & MUPnPSrc_MKey_Bitrate) == MUPnPSrc_MKey_Bitrate)
+	{
+		number = (gint)gupnp_didl_lite_resource_get_bitrate(first_res);
+		if (number > 0)
+			mafw_metadata_add_int(metadata,
+						MAFW_METADATA_KEY_BITRATE,
+						number);
+	}
+	keys &= ~MUPnPSrc_MKey_Bitrate;
+	
+	if (first_res && !resources->next &&
+		(keys & MUPnPSrc_MKey_Res_X) == MUPnPSrc_MKey_Res_X)
+	{
+		number = (gint)gupnp_didl_lite_resource_get_width(first_res);
+		if (number > 0)
+			mafw_metadata_add_int(metadata,
+						MAFW_METADATA_KEY_RES_X,
+						number);
+	}
+	keys &= ~MUPnPSrc_MKey_Res_X;
+
+	if (first_res && !resources->next &&
+		(keys & MUPnPSrc_MKey_Res_Y) == MUPnPSrc_MKey_Res_Y)
+	{
+		number = (gint)gupnp_didl_lite_resource_get_height(first_res);
+		if (number > 0)
+			mafw_metadata_add_int(metadata,
+						MAFW_METADATA_KEY_RES_Y,
+						number);
+	}
+	keys &= ~MUPnPSrc_MKey_Res_Y;
+
 	if ((keys & MUPnPSrc_MKey_URI) == MUPnPSrc_MKey_URI)
 	{
-		didl_get_http_res_uri(metadata, properties, is_audio);
+		didl_get_http_res_uri(metadata, resources, is_audio);
 	}
 	keys &= ~MUPnPSrc_MKey_URI;
-	
-	if (!is_container &&
-		((keys & MUPnPSrc_MKey_Is_Seekable) ==
-			MUPnPSrc_MKey_Is_Seekable) && first_xmlnode)
-	{
-		gint8 seekability;
 
-		seekability = didl_get_seekability((xmlNode*)first_xmlnode);
-		if (seekability != -1) {
+	if (first_res && !is_container &&
+		((keys & MUPnPSrc_MKey_Is_Seekable) ==
+			MUPnPSrc_MKey_Is_Seekable))
+	{
+		if (gupnp_protocol_info_get_dlna_operation(
+			gupnp_didl_lite_resource_get_protocol_info(first_res))
+				!= GUPNP_DLNA_OPERATION_NONE)
+		{
 			mafw_metadata_add_boolean(metadata, MAFW_METADATA_KEY_IS_SEEKABLE,
-						  seekability);
+						  	TRUE);
+		}
+		else
+		{
+			value = didl_fallback(didlobject, first_res,
+					8, &type);
+			
+			if (value)
+			{
+				gchar** array;
+				/* Split the protocol info field into 4 fields:
+	   			0:protocol, 1:network, 2:mime-type and 3:additional info. */
+				array = g_strsplit(value, ":", 4);
+				
+				if (strstr(array[3], "DLNA.") != NULL)
+					mafw_metadata_add_boolean(metadata, 
+						MAFW_METADATA_KEY_IS_SEEKABLE,
+						  	FALSE);
+				g_strfreev(array);
+				if ((keys & MUPnPSrc_MKey_Protocol_Info) ==
+					MUPnPSrc_MKey_Protocol_Info)
+				{
+					mafw_metadata_add_str(metadata, 
+						MAFW_METADATA_KEY_PROTOCOL_INFO,
+							      value);
+					keys &= ~MUPnPSrc_MKey_Protocol_Info;
+				}
+				g_free(value);
+			}
+			
 		}
 	}
 	keys &= ~MUPnPSrc_MKey_Is_Seekable;
@@ -912,26 +888,29 @@ static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 	/* the rest */
 	while (keys)
 	{
+		gint id = 0;
 		if ((keys & 1) == 1)
-		{
-			value = didl_fallback(didl_node,
-					first_xmlnode, id, &type);
+		{			
+			value = didl_fallback(didlobject, first_res,
+					id, &type);
 			if (value != NULL && value[0] != '\0')
 			{
-				name = util_get_metadatakey_from_id(id);
-				if (!name)
+				constval = util_get_metadatakey_from_id(id);
+				if (!constval)
 				{
 					g_free(value);
+					keys >>= 1;
+					id++;
 					continue;
 				}
 				if (type == G_TYPE_INT)
 				{
-					mafw_metadata_add_int(metadata, name,
+					mafw_metadata_add_int(metadata, constval,
 							      atoi(value));
 				}
 				else if (type == G_TYPE_STRING)
 				{
-					mafw_metadata_add_str(metadata, name,
+					mafw_metadata_add_str(metadata, constval,
 							      value);
 				}
 				g_free(value);
@@ -941,7 +920,8 @@ static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 		id++;
 	}
 
-	g_list_free(properties);
+	g_list_foreach(resources, (GFunc)_call_unref, NULL);
+	g_list_free(resources);
 
 	return metadata;
 }
@@ -1375,15 +1355,13 @@ static void browse_args_unref(BrowseArgs* args, GError *err)
  * whole set in one go using the user-given callback function.
  */
 static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
-					    xmlNode* didl_node,
-					    gpointer user_data)
+					   GUPnPDIDLLiteObject* didlobject,
+					   BrowseArgs* args)
 {
 	GHashTable* metadata;
-	BrowseArgs* args;
 	gchar* objectid;
 	gint current;
 
-	args = (BrowseArgs*) user_data;
 	g_assert(args != NULL);
 	g_assert(args->callback != NULL);
 	g_return_if_fail(args->remaining_count > 0);
@@ -1391,7 +1369,7 @@ static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
 	/* Create a MAFW-style object ID for this item node. If an
 	   ID cannot be found, this node might be a <desc> node, which
 	   can be skipped with good conscience. */
-	objectid = util_create_objectid(args->source, didl_node);
+	objectid = util_create_objectid(args->source, didlobject);
 
 	/* If there was no object ID, this node might be a <desc> node
 	   which must not be exposed to the user and thus not counted
@@ -1403,7 +1381,8 @@ static void mafw_upnp_source_browse_result(GUPnPDIDLLiteParser* parser,
 
 	/* Gather requested metadata information from DIDL-Lite */
 	metadata = mafw_upnp_source_compile_metadata(args->mdata_keys,
-						      didl_node, NULL);
+						     didlobject,
+						     NULL);
 
 	/* Calculate remaining count and current item's index. */
 	current = args->current++;
@@ -1507,30 +1486,45 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 	}
 	else
 	{
+		gboolean parser_return;
+		guint object_signal_id;
+		
+		object_signal_id = g_signal_connect(parser, "object-available",
+					(GCallback)mafw_upnp_source_browse_result,
+					args);
 		/* Parse the DIDL-Lite into an xmlNode tree and parse them
 		   one by one, using mafw_upnp_source_browse_result() */
-		gupnp_didl_lite_parser_parse_didl(
+		parser_return = gupnp_didl_lite_parser_parse_didl(
 			parser,
 			didl,
-			mafw_upnp_source_browse_result,
-			args,
 			&gupnp_error);
-		if (gupnp_error != NULL)
+		g_signal_handler_disconnect(parser, object_signal_id);
+		if (!parser_return || gupnp_error != NULL)
 		{
 			/* DIDL-Lite parsing failed */
 
 			GError* error = NULL;
-			g_set_error(&error,
+			if (gupnp_error)
+				g_set_error(&error,
 				    MAFW_SOURCE_ERROR,
 				    MAFW_SOURCE_ERROR_BROWSE_RESULT_FAILED,
 				    "DIDL-Lite parsing failed: %s", gupnp_error->message);
+			else
+				g_set_error(&error,
+				    MAFW_SOURCE_ERROR,
+				    MAFW_SOURCE_ERROR_BROWSE_RESULT_FAILED,
+				    "DIDL-Lite parsing failed");
 			/* Call the callback function with invalid values and
 			   an error. */
 			if (args->remaining_count > 0)
 			{
-				g_warning("DIDL-Lite parsing failed: %s."
+				if (gupnp_error)
+					g_warning("DIDL-Lite parsing failed: %s."
 					  "Terminating browse session.",
 					  gupnp_error->message);
+				else
+					g_warning("DIDL-Lite parsing failed."
+					  "Terminating browse session.");
 
 				args->callback(MAFW_SOURCE(args->source),
 					       args->browse_id, 0, 0, NULL, NULL,
@@ -1539,7 +1533,8 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 			}
 
 			g_error_free(error);
-			g_error_free(gupnp_error);
+			if (gupnp_error)
+				g_error_free(gupnp_error);
 		}
 		/* Continue incremental browse only, if:
 		 * 1. There are items left in the server to browse
@@ -1785,11 +1780,12 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 	args->itemid = itemid; /* Already strdupped */
 	args->search_criteria = upsc;
 	args->sort_criteria = upnp_sort_criteria;
-	
+
 	if (metadata_keys == NULL)
 	{
 		metadata_keys = MAFW_SOURCE_NO_KEYS;
 	}
+
 	/* If metadata_keys is empty (but not NULL), or it contains an asterisk,
 	   it means that ALL metadata keys are being requested */
 	if (metadata_keys != NULL && metadata_keys[0] != NULL &&
@@ -1803,7 +1799,7 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 		args->mdata_keys = util_compile_mdata_keys(metadata_keys);
 		meta_keys = metadata_keys;
 	}
-	
+
 	args->meta_keys_csv = didl_mafwkey_array_to_upnp_filter(
 				    (const gchar *const *)meta_keys);
 	args->skip_count = skip_count;
@@ -1954,7 +1950,7 @@ typedef struct _MetadataArgs
  * practically always contain just one item (also rarely a container).
  */
 static void mafw_upnp_source_metadata_result(GUPnPDIDLLiteParser* parser,
-					      xmlNode* didl_node,
+					      GUPnPDIDLLiteObject* didlobject,
 					      gpointer user_data)
 {
 	MafwUPnPSourcePrivate* priv = NULL;
@@ -1968,15 +1964,15 @@ static void mafw_upnp_source_metadata_result(GUPnPDIDLLiteParser* parser,
 	g_assert(priv != NULL);
 
 	/* If the XML node is not a DIDL item or container, skip it */
-	if (gupnp_didl_lite_object_is_item(didl_node) == TRUE ||
-	    gupnp_didl_lite_object_is_container(didl_node) == TRUE)
+	if (GUPNP_IS_DIDL_LITE_ITEM(didlobject) == TRUE ||
+	    GUPNP_IS_DIDL_LITE_CONTAINER(didlobject) == TRUE)
 	{
 		GHashTable* metadata;
 		gchar* objectid;
 
-		objectid = util_create_objectid(args->source, didl_node);
+		objectid = util_create_objectid(args->source, didlobject);
 		metadata = mafw_upnp_source_compile_metadata(args->mdata_keys,
-							      didl_node,
+							      didlobject,
 							      args->didl);
 
 		args->callback(MAFW_SOURCE(args->source), objectid, metadata,
@@ -2034,25 +2030,32 @@ static void mafw_upnp_source_metadata_cb(GUPnPServiceProxy* service,
 	}
 	else
 	{
-		gupnp_didl_lite_parser_parse_didl(
+		gboolean parser_return;
+		guint object_signal_id;
+		
+		object_signal_id = g_signal_connect(parser, "object-available",
+					(GCallback)mafw_upnp_source_metadata_result,
+					args);
+		parser_return = gupnp_didl_lite_parser_parse_didl(
 			parser,
 			args->didl,
-			mafw_upnp_source_metadata_result,
-			args,
 			&gupnp_error);
+		g_signal_handler_disconnect(parser, object_signal_id);
 
-		if (gupnp_error != NULL)
+		if (!parser_return || gupnp_error != NULL)
 		{
 			GError* error = NULL;
 
 			/* DIDL-Lite parsing failed */
 			g_warning("Metadata DIDL-Lite parsing failed: %s",
-					gupnp_error->message);
+					gupnp_error ? gupnp_error->message :
+					"Reason unknown");
 			g_set_error(&error,
 				    MAFW_SOURCE_ERROR,
 				    MAFW_SOURCE_ERROR_GET_METADATA_RESULT_FAILED,
 				    "Metadata DIDL-Lite parsing failed: %s",
-						gupnp_error->message);
+						gupnp_error ? gupnp_error->message :
+						"Reason unknown");
 
 			/* Call the callback with invalid values and an error */
 			args->callback(MAFW_SOURCE(args->source),

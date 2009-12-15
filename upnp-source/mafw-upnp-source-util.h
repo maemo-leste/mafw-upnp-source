@@ -33,7 +33,7 @@ gchar* util_uuid_to_udn(const gchar* uuid);
 guint64 util_compile_mdata_keys(const gchar* const* original);
 
 gint util_compare_uint(guint a, guint b);
-gchar* util_create_objectid(MafwUPnPSource* source, xmlNode* didl_node);
+gchar* util_create_objectid(MafwUPnPSource* source, GUPnPDIDLLiteObject* didlobject);
 
 const gchar* util_mafwkey_to_upnp_result(gint id, gint* type);
 const gchar *util_get_metadatakey_from_id(gint id);

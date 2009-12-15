@@ -50,9 +50,8 @@ PKG_CHECK_MODULES(DEPS,
 		gobject-2.0  >= 2.12
 		gthread-2.0
 		mafw 	     >= 0.1
-		gupnp-1.0    >= 0.6
-		gupnp-av-1.0 >= 0.1
-		dbus-glib-1
+		gupnp-1.0    >= 0.13
+		gupnp-av-1.0 >= 0.5
 	]
 )
 
@@ -134,23 +133,6 @@ AM_CONDITIONAL(ENABLE_SAMPLES, [test "x$enable_samples" = xyes])
 if test x$enable_samples = xyes; then
 	PKG_CHECK_MODULES(MAFW_SHARED, [mafw-shared])
 fi
-
-dnl Only use conic if it's available
-HAVE_CONIC=no
-dnl check for conic
-PKG_CHECK_MODULES(LIBCONIC, conic >= 0.13,
-[
-  HAVE_CONIC=yes
-  AC_SUBST(LIBCONIC_CFLAGS)
-  AC_SUBST(LIBCONIC_LIBS)
-],
-[ 
-  HAVE_CONIC=no
-  AC_MSG_WARN([conic 0.13 or greater not found.])
-])
-
-AM_CONDITIONAL(HAVE_CONIC, test x$HAVE_CONIC = xyes)
-AC_SUBST(HAVE_CONIC)
 
 dnl Output files.
 

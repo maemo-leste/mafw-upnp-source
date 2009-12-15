@@ -34,6 +34,8 @@
 #include <libgupnp-av/gupnp-av.h>
 
 #include "../upnp-source/mafw-upnp-source-didl.h"
+#include "../upnp-source/mafw-upnp-source.h"
+#include "../upnp-source/mafw-upnp-source-util.h"
 
 static gchar* DIDL_ITEM = \
 	"<DIDL-Lite xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\">" \
@@ -57,51 +59,41 @@ static gchar* DIDL_CONTAINER = \
 	 "</container>" \
 	"</DIDL-Lite>";
 
-void test_didl_item_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
+void test_didl_item_cb(GUPnPDIDLLiteParser* parser, 
+		       GUPnPDIDLLiteObject* didlobject,
 		       gpointer user_data)
 {
 	GList *resources;
-	xmlNode* res_node;
+	GUPnPDIDLLiteResource* res_node;
 	gchar* value;
 	gint type;
 	gint num;
 	GHashTable *mdata = mafw_metadata_new();
 	GValue *val;
 	gboolean is_audio, is_supported = FALSE;
+	MafwUPnPSource* source;
 
-	fail_if(node == NULL, "GUPnP is %s", "broken");
+	fail_if(didlobject == NULL, "GUPnP is %s", "broken");
+	
+	source = MAFW_UPNP_SOURCE(mafw_upnp_source_new("name", "uuid"));
+	g_assert(source != NULL);
+
+	value= util_create_objectid(source, didlobject);
+	fail_unless(strcmp(value, "uuid::18132") == 0, "Wrong object ID");
+	g_free(value);
+	g_object_unref(source);
 
 	/* Protocol info stuff */
-	resources = didl_get_supported_resources(node);
+	resources = didl_get_supported_resources(didlobject);
 	fail_if(resources == NULL || resources->data == NULL,
 				"Unable to get a resource node");
 	fail_if(g_list_length(resources) != 1, "Resource list not correct");
 	
 	res_node = resources->data;
 
-	value = didl_res_get_protocol_info(res_node, 0);
-	fail_if(value == NULL);
-	fail_if(strcmp(value, "http-get") != 0, "Wrong protocol: %s", value);
-	g_free(value);
-
-	value = didl_res_get_protocol_info(res_node, 1);
-	fail_if(value == NULL);
-	fail_if(strcmp(value, "*") != 0, "Wrong network: %s", value);
-	g_free(value);
-
-	value = didl_res_get_protocol_info(res_node, 2);
-	fail_if(value == NULL);
-	fail_if(strcmp(value, "audio/mpeg") != 0, "Wrong MIME: %s", value);
-	g_free(value);
-
-	value = didl_res_get_protocol_info(res_node, 3);
-	fail_if(value == NULL);
-	fail_if(strcmp(value, "*") != 0, "Wrong additional info: %s", value);
-	g_free(value);
-
 	/* Properties */
 	
-	is_audio = didl_check_filetype(node, &is_supported);
+	is_audio = didl_check_filetype(didlobject, &is_supported);
 	
 	fail_if(is_audio == FALSE, "Item should be audio");
 	fail_if(is_supported == FALSE, "Item should be supported");
@@ -111,94 +103,71 @@ void test_didl_item_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
 	fail_if(val == NULL);
 	fail_if(strcmp(g_value_get_string(val), "audio/mpeg") != 0, "Wrong MIME: %s", value);
 
-	num = didl_get_duration(res_node);
-	fail_if(num != 272, "Wrong duration: %d", num);
-
-	num = didl_get_childcount(node);
-	fail_if(num != -1, "Childcount %d found for an item node", num);
 
 	didl_get_http_res_uri(mdata, resources, TRUE);
 	val = mafw_metadata_first(mdata, MAFW_METADATA_KEY_URI);
 	fail_if(strcmp(g_value_get_string(val),
 		       "http://172.23.117.242:9000/disk/music/O18132.mp3") != 0,
 		"Wrong URI: %s", g_value_get_string(val));
-
-	value = didl_get_album_art_uri(node);
-	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
-		"Wrong album art URI: %s", value);
-	g_free(value);
 	
 	/* Fallbacks */
 	type = 0;
-	value = didl_fallback(node, res_node, 7, &type);
+	value = didl_fallback(didlobject, res_node, 7, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/lyrics.txt") != 0,
 		"Wrong lyrics URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 	
 	type = 0;
-	value = didl_fallback(node, res_node, 9, &type);
+	value = didl_fallback(didlobject, res_node, 9, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
 		"Wrong small album art URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, res_node, 10, &type);
+	value = didl_fallback(didlobject, res_node, 10, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
 		"Wrong medium album art URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, res_node, 11, &type);
+	value = didl_fallback(didlobject, res_node, 11, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/albumArt.png") != 0,
 		"Wrong large album art URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, res_node, 12, &type);
+	value = didl_fallback(didlobject, res_node, 12, &type);
 	fail_if(strcmp(value, "http://foo.bar.com:31337/disco.html") != 0,
 		"Wrong artist info URI: %s", value);
 	fail_if(type != G_TYPE_STRING, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, res_node, 13, &type);
+	value = didl_fallback(didlobject, res_node, 13, &type);
 	fail_if(strcmp(value, "31337") != 0,
 		"Wrong audio bitrate: %s", value);
 	fail_if(type != G_TYPE_INT, "Wrong type");
 	g_free(value);
 	
 	type = 0;
-	value = didl_fallback(node, res_node, 14, &type);
+	value = didl_fallback(didlobject, res_node, 14, &type);
 	fail_if(strcmp(value, "31337") != 0,
 		"Wrong video bitrate: %s", value);
 	fail_if(type != G_TYPE_INT, "Wrong type");
 	g_free(value);
 
 	type = 0;
-	value = didl_fallback(node, res_node, 15, &type);
-	fail_if(strcmp(value, "31337") != 0,
-		"Wrong bitrate: %s", value);
-	fail_if(type != G_TYPE_INT, "Wrong type");
-	g_free(value);
-
-	type = 0;
-	value = didl_fallback(node, res_node, 16, &type);
-	fail_if(strcmp(value, "6548309") != 0, "Wrong filesize: %s", value);
-	fail_if(type != G_TYPE_INT, "Wrong type");
-	g_free(value);
-
-	type = 0;
-	value = didl_fallback(node, res_node, 17, &type);
+	value = didl_fallback(didlobject, res_node, 17, &type);
 	fail_if(strcmp(value, "32") != 0, "Wrong BPP: %s", value);
 	fail_if(type != G_TYPE_INT, "Wrong type");
 	g_free(value);
 }
 
-void test_didl_container_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
+void test_didl_container_cb(GUPnPDIDLLiteParser* parser, GUPnPDIDLLiteObject* didlobject,
 			    gpointer user_data)
 {
 	gchar* value;
@@ -208,7 +177,7 @@ void test_didl_container_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
 	GValue *val;
 	GList *resources;
 
-	fail_if(node == NULL, "GUPnP is %s", "broken");
+	fail_if(didlobject == NULL, "GUPnP is %s", "broken");
 
 	didl_get_mimetype(mdata, TRUE, TRUE, resources);
 	val = mafw_metadata_first(mdata, MAFW_METADATA_KEY_MIME);
@@ -216,13 +185,10 @@ void test_didl_container_cb(GUPnPDIDLLiteParser* parser, xmlNode* node,
 	fail_if(strcmp(g_value_get_string(val), MAFW_METADATA_VALUE_MIME_CONTAINER) != 0,
 		"Wrong MIME for container: %s", value);
 
-	resources = didl_get_supported_resources(node);
+	resources = didl_get_supported_resources(didlobject);
 	fail_if(resources == NULL || resources->data == NULL,
 				"Unable to get a resource node");
 	fail_if(g_list_length(resources) != 1, "Resource list not correct");
-
-	num = didl_get_childcount(node);
-	fail_if(num != 10, "wrong childcount: %d", num);
 }
 
 START_TEST(test_didl_item)
@@ -233,8 +199,9 @@ START_TEST(test_didl_item)
 	g_thread_init(NULL);
 
 	parser = gupnp_didl_lite_parser_new();
-	gupnp_didl_lite_parser_parse_didl(parser, DIDL_ITEM,
-					  test_didl_item_cb, NULL, NULL);
+	g_signal_connect(parser, "object-available", (GCallback)test_didl_item_cb,
+					NULL);
+	gupnp_didl_lite_parser_parse_didl(parser, DIDL_ITEM, NULL);
 	g_object_unref(parser);
 
 }
@@ -248,8 +215,9 @@ START_TEST(test_didl_container)
 	g_thread_init(NULL);
 
 	parser = gupnp_didl_lite_parser_new();
-	gupnp_didl_lite_parser_parse_didl(parser, DIDL_CONTAINER,
-					  test_didl_container_cb, NULL, NULL);
+	g_signal_connect(parser, "object-available", (GCallback)test_didl_container_cb,
+					NULL);
+	gupnp_didl_lite_parser_parse_didl(parser, DIDL_CONTAINER, NULL);
 	g_object_unref(parser);
 
 }
