@@ -885,10 +885,10 @@ static GHashTable *mafw_upnp_source_compile_metadata(guint64 keys,
 	}
 	keys &= ~MUPnPSrc_MKey_Is_Seekable;
 
+	gint id = 0;
 	/* the rest */
 	while (keys)
 	{
-		gint id = 0;
 		if ((keys & 1) == 1)
 		{			
 			value = didl_fallback(didlobject, first_res,
@@ -938,7 +938,7 @@ static gboolean internal_filter_to_search_criteria_simple(
 
 	g_assert(upsc != NULL);
 
-	didl_key = didl_mafwkey_to_upnp_filter(maffin->key);
+	didl_key = util_mafwkey_to_upnp_filter(maffin->key);
 	g_string_append(upsc, didl_key);
 
 	/* Since protocolInfo contains sub-strings like MIME type and protocol,
@@ -1441,6 +1441,7 @@ static void mafw_upnp_source_browse_cb(GUPnPServiceProxy* service,
 		"\tTotalMatches: %d\n",
 		mafw_extension_get_uuid(MAFW_EXTENSION(args->source)),
 		args->number_returned, args->total_matches);
+
 	if (args->remaining_count == UINT_MAX)
 	{// Calculate the new remaining count
 		if (args->item_count == 0 ||
@@ -1679,7 +1680,7 @@ static gchar* mafw_sort_criteria_to_upnp(const gchar* mafw_sc)
 		}
 
 		/* Skip the order marker with + 1 */
-		key = didl_mafwkey_to_upnp_filter(crit_array[i] + 1);
+		key = util_mafwkey_to_upnp_filter(crit_array[i] + 1);
 
 		/* Catenate the upnp-ified keys to a single CSV */
 		temp = g_strconcat(upnp_sc, order, key, NULL);
@@ -1800,8 +1801,7 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 		meta_keys = metadata_keys;
 	}
 
-	args->meta_keys_csv = didl_mafwkey_array_to_upnp_filter(
-				    (const gchar *const *)meta_keys);
+	args->meta_keys_csv = util_mafwkey_array_to_upnp_filter(args->mdata_keys);
 	args->skip_count = skip_count;
 	args->item_count = item_count;
 	args->callback = browse_cb;
@@ -2122,7 +2122,7 @@ static void mafw_upnp_source_get_metadata(MafwSource *source,
 	args->mdata_keys = util_compile_mdata_keys(metadata_keys);
 
 	/* Convert the given metadata key array into a UPnP browse filter */
-	mdkeys_csv = didl_mafwkey_array_to_upnp_filter(metadata_keys);
+	mdkeys_csv = util_mafwkey_array_to_upnp_filter(args->mdata_keys);
 
 	g_debug("Get metadata: %s\n\tKeys: %s\n", object_id, mdkeys_csv);
 

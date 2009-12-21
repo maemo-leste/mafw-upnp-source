@@ -128,6 +128,7 @@ struct _MafwUPnPSourceClass {
 #define MUPnPSrc_MKey_Description		G_GUINT64_CONSTANT(0x4000000)
 #define MUPnPSrc_MKey_Encoding			G_GUINT64_CONSTANT(0x8000000)
 #define MUPnPSrc_MKey_Added			G_GUINT64_CONSTANT(0x10000000)
+#define MUPnPSrc_MKey_Modified			G_GUINT64_CONSTANT(0x20000000)
 #define MUPnPSrc_MKey_Thumbnail			G_GUINT64_CONSTANT(0x40000000)
 #define MUPnPSrc_MKey_Res_X			G_GUINT64_CONSTANT(0x80000000)
 #define MUPnPSrc_MKey_Res_Y			G_GUINT64_CONSTANT(0x100000000)

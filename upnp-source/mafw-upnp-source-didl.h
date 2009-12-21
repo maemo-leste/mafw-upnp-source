@@ -64,10 +64,4 @@ gchar* didl_fallback(GUPnPDIDLLiteObject* didl_object,
 			GUPnPDIDLLiteResource* first_res, gint id, gint* type);
 
 
-/*----------------------------------------------------------------------------
-  Browse filter
-  ----------------------------------------------------------------------------*/
-gchar* didl_mafwkey_array_to_upnp_filter(const gchar* const* metadata_keys);
-const gchar* didl_mafwkey_to_upnp_filter(const gchar* mafwkey);
-
 #endif /* MAFW_UPNP_SOURCE_DIDL_H */
