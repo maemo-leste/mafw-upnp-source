@@ -1,7 +1,7 @@
 Source: mafw-upnp-source
 Section: misc
 Priority: optional
-Maintainer: Juha Kellokoski <veitikka6@gmail.com>
+Maintainer: Mika Tapojarvi <mika.tapojarvi@sse.fi>
 Build-Depends: debhelper (>= 4.0.0),
 	       libglib2.0-dev, uuid-dev,
 	       libgupnp-av-1.0-dev,

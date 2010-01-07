@@ -1,9 +1,10 @@
-mafw-upnp-source (0.2.2009.51-1) unstable; urgency=low
+mafw-upnp-source (0.2.2010.01-1) unstable; urgency=low
 
   * Fixes: NB#150444 - Upgrade gupnp stack (gupnp, gupnp-av, gssdp)
   * Porting to use new gupnp.
+  * Update and new build.
 
- -- Mika Tapojärvi <ext-mika.tapojarvi@nokia.com>  Wed, 16 Dec 2009 15:44:19 +0200
+ -- Mika Tapojärvi <mika.tapojarvi@sse.fi>  Thu, 07 Jan 2010 19:21:02 +0200
 
 mafw-upnp-source (0.2.2009.50-2) unstable; urgency=low
 
