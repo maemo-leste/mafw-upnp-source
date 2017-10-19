@@ -1,3 +1,9 @@
+mafw-upnp-source (0.2.2010.07-3) unstable; urgency=low
+
+  * Bump version number so its not the same as the stock package
+
+ -- Mika Tapojärvi <ext-mika.tapojarvi@nokia.com>  Wed, 18 Oct 2017 20:23:50 -0400
+
 mafw-upnp-source (0.2.2010.07-2) unstable; urgency=low
 
   * Fixes: NB#150549 - Dbus wrapper crashes when container in UPnP Source is imported with 'import selected category' option
