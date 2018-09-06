@@ -152,16 +152,6 @@ static const gchar *upnp_filters[] = {
 	MAFW_METADATA_KEY_ICON
 };
 
-/**
- * util_get_upnp_filter_by_id:
- *
- * Returns the ID of a mafw-key, or -1 if not supported
- */
-const gchar *util_get_upnp_filter_by_id(gint id)
-{
-	return upnp_filters[id];
-}
-
 static struct _upnp_map upnpmaps[] = {
 	{0, NULL, MAFW_METADATA_KEY_URI, 0},
 	{0, NULL, MAFW_METADATA_KEY_CHILDCOUNT_1, 14},
@@ -213,6 +203,16 @@ static struct _upnp_map upnpmaps[] = {
 	{G_TYPE_STRING, MAFW_METADATA_KEY_ICON_URI, MAFW_METADATA_KEY_ICON_URI, 40},
 	{G_TYPE_STRING, MAFW_METADATA_KEY_ICON, MAFW_METADATA_KEY_ICON, 41}
 };
+
+/**
+ * util_get_upnp_filter_by_id:
+ *
+ * Returns the ID of a mafw-key, or -1 if not supported
+ */
+const gchar *util_get_upnp_filter_by_id(gint id)
+{
+	return upnp_filters[upnpmaps[id].upnp_filterid];
+}
 
 static GHashTable *_mafw_to_upnphash;
 
@@ -286,6 +286,9 @@ const gchar* util_mafwkey_to_upnp_filter(const gchar* mafwkey)
 	g_return_val_if_fail(mafwkey != NULL, NULL);
 
 	id = util_get_id_from_mafwkey(mafwkey);
+
+	if (id == -1)
+		return mafwkey;
 
 	return util_get_upnp_filter_by_id(id);
 }
