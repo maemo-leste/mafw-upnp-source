@@ -52,6 +52,7 @@ PKG_CHECK_MODULES(DEPS,
 		mafw 	     >= 0.1
 		gupnp-1.0    >= 0.13
 		gupnp-av-1.0 >= 0.5
+		gssdp-1.0
 		libxml-2.0
 	]
 )
