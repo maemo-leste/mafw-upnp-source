@@ -1,3 +1,10 @@
+mafw-upnp-source (0.3.0) unstable; urgency=low
+
+  * port to leste and debhelper 9
+  * fix bugs introduced by commit 8dff67c7c9acad24c4b3817bf916b2d8fad2a423
+
+ -- Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>  Thu, 06 Sep 2018 15:55:34 +0300
+
 mafw-upnp-source (0.2.2010.07-3) unstable; urgency=low
 
   * Bump version number so its not the same as the stock package
