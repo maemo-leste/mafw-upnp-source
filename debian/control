@@ -1,9 +1,10 @@
 Source: mafw-upnp-source
 Section: misc
 Priority: optional
-Maintainer: Mika Tapojarvi <mika.tapojarvi@sse.fi>
-Build-Depends: debhelper (>= 4.0.0),
-	       libglib2.0-dev, uuid-dev,
+Maintainer: Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>
+Build-Depends: debhelper (>= 9.0.0),
+	       libglib2.0-dev, uuid-dev, libxml2-dev,
+	       libgupnp-1.0-dev,
 	       libgupnp-av-1.0-dev,
 	       libmafw0-dev, checkmore
 Standards-Version: 3.7.2
@@ -15,10 +16,3 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: MAFW UPnP source plugin
  Source plugin for MAFW UPnP.
 
-Package: mafw-upnp-source-dbg
-Section: devel
-Architecture: any
-Priority: extra
-Depends: mafw-upnp-source (= ${binary:Version})
-Description: debug symbols for mafw-upnp-source
- MAFW-UPnP-source debug symbols.

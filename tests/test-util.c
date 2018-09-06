@@ -76,8 +76,9 @@ int main(void)
 	TCase *tc;
 	gint nf;
 
-        g_type_init();
-
+#if !GLIB_CHECK_VERSION(2,35,0)
+	g_type_init();
+#endif
         suite = suite_create("MAFW UPnP Source Utilities");
 
 	tc = tcase_create("Utilities");

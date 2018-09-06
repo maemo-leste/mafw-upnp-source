@@ -47,50 +47,6 @@
 #include "../upnp-source/mafw-upnp-source-didl.h"
 #include "../upnp-source/mafw-upnp-source-util.h"
 
-#ifdef __ARMEL__
-/* qemu's setsockopt() doesn't support a few flags, which disturbs some
- * libraries.  Let's fake it. */
-# if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 16)
-/* Examine the setsockopt() arguments, filter out what can't be emulated
- * then redirect the rest to the real (emulated) setsockopt().  This is
- * not available in newer linux-kernel-headers. */
-#  define __NR_real_setsockopt __NR_setsockopt
-static _syscall5(int,		real_setsockopt,
-		 int,		fd,
-		 int,		level,
-		 int,		optname,
-		 const void *,	optval,
-		 socklen_t,	optlen);
-
-int setsockopt(int fd, int level, int optname,
-	       const void *optval, socklen_t optlen)
-{
-	if (level == SOL_SOCKET) {
-		if (optlen == sizeof(int) && *(int *)optval) {
-			if (optname == SO_BROADCAST)
-				return 0;
-			else if (optname == SO_REUSEADDR)
-				return 0;
-		}
-	} else if (level == SOL_IP) {
-		if (optname == IP_ADD_MEMBERSHIP
-		    && optlen == sizeof(struct ip_mreq))
-			return 0;
-	}
-
-	return real_setsockopt(fd, level, optname, optval, optlen);
-}
-# else /* LINUX_VERSION_CODE > 2.6.16 */
-/* Newer linux-kernel-headers (2.6.22 at least) doesn't define
- * _syscall5() anymore.  Just ignore setsockopt(). */
-int setsockopt(int fd, int level, int optname,
-	       const void *optval, socklen_t optlen)
-{
-	return 0;
-}
-# endif /* LINUX_VERSION_CODE */
-#endif /* __ARMEL__ */
-
 static gboolean gssdp_set_act_called , gssdp_set_act_val, prop_chd_emitted;
 
 static void ctrl_prop_chd(MafwExtension *ctrlsrc, gchar *name, GValue *nval,
@@ -683,8 +639,12 @@ int main(void)
 	Suite *suite;
 
 	checkmore_wants_dbus();
+#if !GLIB_CHECK_VERSION(2,35,0)
 	g_type_init();
+#endif
+#if !GLIB_CHECK_VERSION(2,32,0)
 	g_thread_init(NULL);
+#endif
 
 	checkmore_wants_dbus();
 	suite = suite_create("MafwUPnPSource");

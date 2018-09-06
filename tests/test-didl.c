@@ -194,9 +194,12 @@ void test_didl_container_cb(GUPnPDIDLLiteParser* parser, GUPnPDIDLLiteObject* di
 START_TEST(test_didl_item)
 {
 	GUPnPDIDLLiteParser* parser;
-
-        g_type_init();
+#if !GLIB_CHECK_VERSION(2,35,0)
+	g_type_init();
+#endif
+#if !GLIB_CHECK_VERSION(2,32,0)
 	g_thread_init(NULL);
+#endif
 
 	parser = gupnp_didl_lite_parser_new();
 	g_signal_connect(parser, "object-available", (GCallback)test_didl_item_cb,
@@ -211,9 +214,12 @@ START_TEST(test_didl_container)
 {
 	GUPnPDIDLLiteParser* parser;
 
-        g_type_init();
+#if !GLIB_CHECK_VERSION(2,35,0)
+	g_type_init();
+#endif
+#if !GLIB_CHECK_VERSION(2,32,0)
 	g_thread_init(NULL);
-
+#endif
 	parser = gupnp_didl_lite_parser_new();
 	g_signal_connect(parser, "object-available", (GCallback)test_didl_container_cb,
 					NULL);

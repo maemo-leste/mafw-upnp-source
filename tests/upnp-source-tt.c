@@ -413,8 +413,12 @@ int main(int argc, char **argv)
 {
 	MafwRegistry* registry;
 
+#if !GLIB_CHECK_VERSION(2,35,0)
 	g_type_init();
+#endif
+#if !GLIB_CHECK_VERSION(2,32,0)
 	g_thread_init(NULL);
+#endif
 
 	_main_loop = g_main_loop_new(NULL, FALSE);
 	g_assert(_main_loop != NULL);

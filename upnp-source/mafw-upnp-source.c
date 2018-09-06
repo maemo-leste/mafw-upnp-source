@@ -374,10 +374,11 @@ void mafw_upnp_source_plugin_initialize(MafwRegistry* registry)
 	_plugin->registry = registry;
 	g_object_ref(registry);
 
+#if !GLIB_CHECK_VERSION(2,32,0)
 	/* Libsoup needs thread support */
 	if (g_thread_supported() == FALSE)
 		g_thread_init(NULL);
-
+#endif
 	/* Creating the control source */
 	control_src = MAFW_SOURCE(mafw_upnp_control_source_new());
 	mafw_registry_add_extension(registry, MAFW_EXTENSION(control_src));
@@ -1716,7 +1717,7 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 	BrowseArgs* args;
 	gchar* upsc;
 	gchar* upnp_sort_criteria;
-	const gchar* const* meta_keys;
+	/* const gchar* const* meta_keys; */
 	gchar* itemid;
 	GError *error = NULL;
 
@@ -1793,12 +1794,12 @@ static guint mafw_upnp_source_browse(MafwSource *source,
 	    strcmp(MAFW_SOURCE_ALL_KEYS[0], metadata_keys[0]) == 0)
 	{
 		args->mdata_keys = G_MAXUINT64;
-		meta_keys = MAFW_SOURCE_LIST(KNOWN_METADATA_KEYS);
+		/* meta_keys = MAFW_SOURCE_LIST(KNOWN_METADATA_KEYS); */
 	}
 	else
 	{
 		args->mdata_keys = util_compile_mdata_keys(metadata_keys);
-		meta_keys = metadata_keys;
+		/* meta_keys = metadata_keys; */
 	}
 
 	args->meta_keys_csv = util_mafwkey_array_to_upnp_filter(args->mdata_keys);
