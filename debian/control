@@ -6,7 +6,8 @@ Build-Depends: debhelper (>= 9.0.0),
 	       libglib2.0-dev, uuid-dev, libxml2-dev, libgssdp-1.0-dev,
 	       libgupnp-1.0-dev,
 	       libgupnp-av-1.0-dev,
-	       libmafw0-dev, checkmore
+	       libmafw0-dev, checkmore,
+	       maemo-system-services-dev
 Standards-Version: 3.7.2
 
 Package: mafw-upnp-source
