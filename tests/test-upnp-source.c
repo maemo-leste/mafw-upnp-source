@@ -85,6 +85,7 @@ START_TEST(test_plugin)
 				(GCallback)ctrl_prop_chd, NULL);
 	mafw_extension_set_property_boolean(MAFW_EXTENSION(ctrl_src),
 					MAFW_PROPERTY_EXTENSION_ACTIVATE, TRUE);
+	checkmore_spin_loop(2000);
 	fail_if(gssdp_set_act_called == FALSE);
 	fail_if(gssdp_set_act_val == FALSE);
 	fail_if(prop_chd_emitted == FALSE);
@@ -98,7 +99,7 @@ START_TEST(test_plugin)
 					MAFW_PROPERTY_EXTENSION_ACTIVATE, TRUE);
 	fail_if(gssdp_set_act_called == TRUE);
 	fail_if(prop_chd_emitted == FALSE);
-	checkmore_spin_loop(4000);
+	checkmore_spin_loop(2000);
 	fail_if(gssdp_set_act_called == TRUE);
 	mafw_extension_set_property_boolean(MAFW_EXTENSION(ctrl_src),
 					MAFW_PROPERTY_EXTENSION_ACTIVATE, FALSE);
@@ -653,7 +654,7 @@ int main(void)
 	suite_add_tcase(suite, tc);
 if (1)	tcase_add_test(tc, test_plugin);
 	tcase_set_timeout(tc, 12);
-	
+
 	/* Browse tests */
 	tc = tcase_create("Browse");
 	suite_add_tcase(suite, tc);
