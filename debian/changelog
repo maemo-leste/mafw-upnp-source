@@ -1,3 +1,9 @@
+mafw-upnp-source (0.3.1) unstable; urgency=low
+
+  * fix missing build dependency
+
+ -- Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>  Thu, 06 Sep 2018 16:44:12 +0300
+
 mafw-upnp-source (0.3.0) unstable; urgency=low
 
   * port to leste and debhelper 9
